@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寸止めゲーム × Tara X</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background: #111; color: #f5f5f5; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  .card { background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  button { font-size: 16px; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; width: 100%; background:#333; color:#fff; }
+  button:disabled { opacity: .4; }
+  #connectBtn { background: #444; font-weight: bold; }
+  #startBtn { background: #e75480; color: #fff; font-weight: bold; font-size: 18px; padding: 16px; }
+  #stopBtn { background: #d32f2f; color: #fff; font-weight: bold; font-size: 18px; padding: 16px; }
+  #closeBtn { background: #ff9800; color: #111; font-weight: bold; font-size: 18px; padding: 16px; }
+  .row { margin: 14px 0; }
+  .row .label { font-size: 14px; color: #aaa; margin-bottom: 8px; }
+  .opts { display: flex; gap: 8px; }
+  .opts button { flex: 1; padding: 10px 4px; font-size: 15px; }
+  .opts button.sel { background: #e75480; color: #fff; font-weight: bold; }
+  #status { font-size: 14px; }
+  #status .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#888; margin-right:6px; }
+  #status.on .dot { background:#4caf50; }
+  #timer { font-size: 52px; font-weight: bold; text-align: center; font-variant-numeric: tabular-nums; margin: 6px 0; }
+  #instruction { font-size: 26px; font-weight: bold; text-align: center; min-height: 72px; display:flex; align-items:center; justify-content:center; text-align:center; color:#ffd54f; }
+  #instruction.stop { color:#ef5350; }
+  #subInfo { text-align:center; color:#aaa; font-size:14px; min-height: 20px; }
+  .barWrap { background:#333; border-radius: 6px; height: 10px; overflow: hidden; margin: 12px 0; }
+  #bar { background:#e75480; height: 100%; width: 0%; transition: width .3s linear; }
+  .btnRow { display:flex; gap:8px; }
+  .btnRow button { flex:1; }
+  #score { font-size: 44px; font-weight: bold; text-align:center; color:#ffd54f; }
+  .resultLine { text-align:center; font-size:16px; margin: 6px 0; }
+  #judge { font-size: 30px; font-weight:bold; text-align:center; margin: 10px 0; }
+  #log { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 140px; overflow-y: auto; color: #9f9; }
+  .hidden { display: none; }
+  .smallBtn { width:auto; padding: 6px 12px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>寸止めゲーム × Tara X</h1>
+
+<div class="card">
+  <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
+  <div style="height:12px"></div>
+  <button id="connectBtn">接続する（SX218A）</button>
+</div>
+
+<!-- 設定 -->
+<div class="card" id="setupCard">
+  <div class="row">
+    <div class="label">判定までの時間</div>
+    <div class="opts" id="timeOpts">
+      <button data-min="3">3分</button>
+      <button data-min="5" class="sel">5分</button>
+      <button data-min="10">10分</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="label">難易度</div>
+    <div class="opts" id="diffOpts">
+      <button data-diff="easy">ゆるい</button>
+      <button data-diff="normal" class="sel">ふつう</button>
+      <button data-diff="hard">きびしい</button>
+    </div>
+  </div>
+  <button id="startBtn" disabled>ゲーム開始</button>
+</div>
+
+<!-- プレイ中 -->
+<div class="card hidden" id="playCard">
+  <div id="timer">5:00</div>
+  <div class="barWrap"><div id="bar"></div></div>
+  <div id="instruction">…</div>
+  <div id="subInfo"></div>
+  <div style="height:10px"></div>
+  <button id="closeBtn">イきそう…</button>
+  <div style="height:10px"></div>
+  <div class="btnRow">
+    <button id="pauseBtn">一時停止</button>
+    <button id="stopBtn">やめる</button>
+  </div>
+</div>
+
+<!-- 結果 -->
+<div class="card hidden" id="resultCard">
+  <div id="judge"></div>
+  <div class="resultLine">我慢スコア</div>
+  <div id="score">0</div>
+  <div class="resultLine" id="resultDetail"></div>
+  <div style="height:10px"></div>
+  <button id="againBtn">設定に戻る</button>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+    <span style="font-size:13px;color:#aaa;">ログ</span>
+    <button class="smallBtn" id="copyLogBtn">ログをすべてコピー</button>
+  </div>
+  <div id="log"></div>
+  <textarea id="manualCopy" class="hidden" style="width:100%;height:80px;"></textarea>
+</div>
+
+<script>
+var SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+var TX_CHAR = '0000ffe1-0000-1000-8000-00805f9b34fb';
+var RX_CHAR = '0000ffe2-0000-1000-8000-00805f9b34fb';
+
+var $ = function(id){ return document.getElementById(id); };
+var logLines = [];
+function log(msg){
+  var t = new Date();
+  var hh = ('0'+t.getHours()).slice(-2), mm = ('0'+t.getMinutes()).slice(-2), ss = ('0'+t.getSeconds()).slice(-2);
+  var line = '[' + hh + ':' + mm + ':' + ss + '] ' + msg;
+  logLines.push(line);
+  $('log').textContent += line + '\n';
+  $('log').scrollTop = 1e6;
+}
+function hex(bytes){ return Array.prototype.map.call(bytes, function(b){ return ('0'+b.toString(16)).slice(-2).toUpperCase(); }).join(' '); }
+
+$('copyLogBtn').addEventListener('click', function(){
+  var head = '寸止めゲーム × Tara X ログ\n日時: ' + new Date().toLocaleString('ja-JP') + '\n---\n';
+  var text = head + logLines.join('\n');
+  function fallback(){
+    var ta = $('manualCopy');
+    ta.classList.remove('hidden');
+    ta.value = text;
+    ta.select();
+    log('手動コピー欄を表示しました。長押しでコピーしてください。');
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ log('ログをコピーしました。'); }, fallback);
+  } else fallback();
+});
+
+// ---------- BLE ----------
+var device = null, txChar = null, writeChain = Promise.resolve();
+
+function enqueueWrite(bytes, label){
+  writeChain = writeChain.then(function(){
+    if (!txChar) return;
+    var data = new Uint8Array(bytes);
+    if (label) log(label + ' → ' + hex(data));
+    return txChar.writeValueWithoutResponse(data);
+  }).then(function(){
+    return new Promise(function(r){ setTimeout(r, 40); });
+  }).catch(function(err){
+    log('書き込みエラー: ' + (err && err.message ? err.message : err));
+  });
+  return writeChain;
+}
+function sendLevels(v, s){
+  enqueueWrite([0x55, 0x03, 0x00, 0x00, v === 0 ? 0x00 : 0x01, v], '振動 ' + v);
+  enqueueWrite([0x55, 0x09, 0x00, 0x00, s, 0xff], '吸引 ' + s);
+}
+function stopToy(){ sendLevels(0, 0); }
+
+function setConnected(on){
+  $('status').className = on ? 'on' : '';
+  $('statusText').textContent = on ? '接続中: SX218A' : '未接続';
+  $('connectBtn').textContent = on ? '切断する' : '接続する（SX218A）';
+  $('startBtn').disabled = !on || game.playing;
+}
+
+$('connectBtn').addEventListener('click', function(){
+  if (device && device.gatt && device.gatt.connected) { device.gatt.disconnect(); return; }
+  if (!navigator.bluetooth) { log('このブラウザでは Web Bluetooth が使えません。Bluefy で開いてください。'); return; }
+  log('デバイスを検索します…');
+  navigator.bluetooth.requestDevice({
+    filters: [{ name: 'SX218A' }],
+    optionalServices: [SERVICE]
+  }).then(function(dev){
+    device = dev;
+    device.addEventListener('gattserverdisconnected', function(){
+      txChar = null;
+      setConnected(false);
+      log('切断されました');
+      if (game.playing) endGame('abort');
+    });
+    log('選択: ' + (dev.name || ''));
+    return device.gatt.connect();
+  }).then(function(server){
+    return server.getPrimaryService(SERVICE);
+  }).then(function(service){
+    return service.getCharacteristic(TX_CHAR).then(function(ch){
+      txChar = ch;
+      setConnected(true);
+      log('接続できました');
+      return service.getCharacteristic(RX_CHAR).then(function(rx){
+        if (rx.properties && rx.properties.notify) {
+          return rx.startNotifications().then(function(){
+            rx.addEventListener('characteristicvaluechanged', function(ev){
+              var v = new Uint8Array(ev.target.value.buffer);
+              log('受信 ← ' + hex(v));
+            });
+          }).catch(function(){});
+        }
+      }).catch(function(){});
+    });
+  }).catch(function(err){
+    log('接続エラー: ' + (err && err.message ? err.message : err));
+  });
+});
+
+// ---------- ゲーム ----------
+var DIFFS = {
+  easy:   { cap: 2, mult: 1.0, stopChance: 0.15, label: 'ゆるい' },
+  normal: { cap: 3, mult: 1.5, stopChance: 0.22, label: 'ふつう' },
+  hard:   { cap: 3, mult: 2.0, stopChance: 0.30, label: 'きびしい' }
+};
+var selMinutes = 5, selDiff = 'normal';
+
+function bindOpts(id, fn){
+  var el = $(id);
+  el.addEventListener('click', function(e){
+    if (e.target.tagName !== 'BUTTON') return;
+    var btns = el.querySelectorAll('button');
+    for (var i=0;i<btns.length;i++) btns[i].classList.remove('sel');
+    e.target.classList.add('sel');
+    fn(e.target);
+  });
+}
+bindOpts('timeOpts', function(b){ selMinutes = Number(b.getAttribute('data-min')); });
+bindOpts('diffOpts', function(b){ selDiff = b.getAttribute('data-diff'); });
+
+var game = {
+  playing: false, paused: false,
+  totalSec: 0, remainSec: 0, elapsedSec: 0,
+  nearMiss: 0, segTimer: null, tickTimer: null,
+  curV: 0, curS: 0, granted: false
+};
+
+function fmt(sec){
+  sec = Math.max(0, Math.ceil(sec));
+  return Math.floor(sec/60) + ':' + ('0' + (sec%60)).slice(-2);
+}
+function rand(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); }
+
+function setInstruction(text, isStop){
+  $('instruction').textContent = text;
+  $('instruction').className = isStop ? 'stop' : '';
+}
+
+function nextSegment(){
+  if (!game.playing || game.paused) return;
+  var d = DIFFS[selDiff];
+  var finalPhase = game.remainSec <= 30;
+  var isStop = !finalPhase && Math.random() < d.stopChance;
+  if (isStop) {
+    var stopSec = rand(5, 12);
+    game.curV = 0; game.curS = 0;
+    stopToy();
+    setInstruction('止まれ！ 動かすな', true);
+    $('subInfo').textContent = '寸止め中… ' + stopSec + '秒';
+    log('指示: 停止 ' + stopSec + '秒');
+    game.segTimer = setTimeout(nextSegment, stopSec * 1000);
+  } else {
+    var sec = rand(8, 20);
+    var cap = d.cap;
+    game.curV = rand(1, cap);
+    game.curS = Math.random() < 0.35 ? 0 : rand(1, cap);
+    if (finalPhase) { game.curV = cap; if (game.curS === 0) game.curS = rand(1, cap); }
+    sendLevels(game.curV, game.curS);
+    setInstruction('振動 ' + game.curV + ' ／ 吸引 ' + game.curS, false);
+    $('subInfo').textContent = (finalPhase ? '最終フェーズ！ ' : '') + '次の指示まで ' + sec + '秒';
+    log('指示: 振動' + game.curV + ' 吸引' + game.curS + ' を ' + sec + '秒');
+    game.segTimer = setTimeout(nextSegment, sec * 1000);
+  }
+}
+
+function tick(){
+  if (!game.playing || game.paused) return;
+  game.remainSec -= 0.25;
+  game.elapsedSec += 0.25;
+  $('timer').textContent = fmt(game.remainSec);
+  $('bar').style.width = (100 * game.elapsedSec / game.totalSec) + '%';
+  if (game.remainSec <= 0) judge();
+}
+
+function startGame(){
+  if (!txChar) { log('先に接続してください'); return; }
+  game.playing = true; game.paused = false;
+  game.totalSec = selMinutes * 60;
+  game.remainSec = game.totalSec;
+  game.elapsedSec = 0;
+  game.nearMiss = 0;
+  game.granted = false;
+  $('setupCard').classList.add('hidden');
+  $('resultCard').classList.add('hidden');
+  $('playCard').classList.remove('hidden');
+  $('startBtn').disabled = true;
+  $('timer').textContent = fmt(game.remainSec);
+  $('bar').style.width = '0%';
+  log('ゲーム開始: ' + selMinutes + '分 / ' + DIFFS[selDiff].label);
+  setInstruction('はじめ！', false);
+  game.tickTimer = setInterval(tick, 250);
+  game.segTimer = setTimeout(nextSegment, 1500);
+}
+
+function judge(){
+  clearTimeout(game.segTimer);
+  game.granted = Math.random() < 0.5;
+  log('判定: ' + (game.granted ? '許可' : 'おあずけ'));
+  if (game.granted) {
+    var d = DIFFS[selDiff];
+    setInstruction('いいよ… イっていいよ', false);
+    $('subInfo').textContent = 'ご褒美 30秒';
+    sendLevels(d.cap, d.cap);
+    game.segTimer = setTimeout(function(){ endGame('granted'); }, 30000);
+  } else {
+    stopToy();
+    setInstruction('ダメ。おあずけ', true);
+    $('subInfo').textContent = '';
+    game.segTimer = setTimeout(function(){ endGame('denied'); }, 2500);
+  }
+}
+
+function endGame(kind){
+  if (!game.playing) return;
+  game.playing = false;
+  clearTimeout(game.segTimer);
+  clearInterval(game.tickTimer);
+  stopToy();
+  var d = DIFFS[selDiff];
+  var score = Math.round(game.elapsedSec * d.mult) - game.nearMiss * 50 + (kind === 'granted' ? 200 : 0);
+  if (score < 0) score = 0;
+  $('playCard').classList.add('hidden');
+  $('resultCard').classList.remove('hidden');
+  $('setupCard').classList.remove('hidden');
+  $('startBtn').disabled = !txChar;
+  if (kind === 'granted') $('judge').textContent = '🎉 許可！';
+  else if (kind === 'denied') $('judge').textContent = '😖 おあずけ…';
+  else $('judge').textContent = '中断';
+  $('score').textContent = score;
+  $('resultDetail').textContent = '続けた時間 ' + fmt(game.elapsedSec) + ' ／ イきそう ' + game.nearMiss + ' 回 ／ 難易度 ' + d.label;
+  log('ゲーム終了 (' + kind + ') スコア ' + score);
+}
+
+$('startBtn').addEventListener('click', startGame);
+$('againBtn').addEventListener('click', function(){
+  $('resultCard').classList.add('hidden');
+});
+$('closeBtn').addEventListener('click', function(){
+  if (!game.playing || game.paused) return;
+  game.nearMiss++;
+  $('subInfo').textContent = 'イきそう ' + game.nearMiss + ' 回目…';
+  log('イきそうボタン: ' + game.nearMiss + '回目');
+  // イきそうになったら即・寸止め
+  clearTimeout(game.segTimer);
+  game.curV = 0; game.curS = 0;
+  stopToy();
+  setInstruction('止まれ！ まだダメ', true);
+  game.segTimer = setTimeout(nextSegment, 8000);
+});
+$('pauseBtn').addEventListener('click', function(){
+  if (!game.playing) return;
+  if (!game.paused) {
+    game.paused = true;
+    clearTimeout(game.segTimer);
+    stopToy();
+    setInstruction('一時停止中', true);
+    $('pauseBtn').textContent = '再開';
+  } else {
+    game.paused = false;
+    $('pauseBtn').textContent = '一時停止';
+    setInstruction('再開！', false);
+    game.segTimer = setTimeout(nextSegment, 1000);
+  }
+});
+$('stopBtn').addEventListener('click', function(){ endGame('abort'); });
+
+log('ページを読み込みました');
+</script>
+</body>
+</html>
