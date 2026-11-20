@@ -298,9 +298,9 @@
 <script>
 (function(){
   "use strict";
-  var SERVICE = 0xffe0;
-  var TX_CHAR = 0xffe1;
-  var RX_CHAR = 0xffe2;
+  var SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+  var TX_CHAR = '0000ffe1-0000-1000-8000-00805f9b34fb';
+  var RX_CHAR = '0000ffe2-0000-1000-8000-00805f9b34fb';
 
   var logEl = document.getElementById('log');
   var statusBadge = document.getElementById('statusBadge');
@@ -491,7 +491,7 @@
         log('デバイスが選ばれませんでした（キャンセル、または見つかりません）。電源と BeYourLover アプリの終了を確認してください。');
         setStatus('', '未接続');
       } else {
-        log('接続エラー [' + (err && err.name ? err.name : 'Error') + ']: ' + (err && err.message ? err.message : err));
+        log('接続エラー [' + (err && err.name ? err.name : 'Error') + ']: ' + (err && err.message ? err.message : err) + (err && err.code !== undefined ? ' / code: ' + err.code : '') + ' / 詳細: ' + (function(){ try { return JSON.stringify(err, Object.getOwnPropertyNames(err || {})); } catch(e2) { return String(err); } })());
         setStatus('err', '接続失敗');
       }
     });
