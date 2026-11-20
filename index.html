@@ -355,14 +355,44 @@
   }
   document.getElementById('reloadBtn').addEventListener('click', function(){ location.reload(); });
 
+  var writeMethodOk = null;
+  function tryWrite(data){
+    // 特性の properties を見て書ける方式を順に試す。
+    // Bluefy では片方の方式がエラーになることがあるため、全滅するまでフォールバックする。
+    var props = txChar.properties || {};
+    var methods = [];
+    function add(name, fn){ if (fn) methods.push([name, fn]); }
+    if (writeMethodOk) {
+      add(writeMethodOk, txChar[writeMethodOk] ? function(){ return txChar[writeMethodOk](data); } : null);
+    }
+    if (props.writeWithoutResponse) add('writeValueWithoutResponse', txChar.writeValueWithoutResponse ? function(){ return txChar.writeValueWithoutResponse(data); } : null);
+    if (props.write) add('writeValueWithResponse', txChar.writeValueWithResponse ? function(){ return txChar.writeValueWithResponse(data); } : null);
+    add('writeValueWithoutResponse', txChar.writeValueWithoutResponse ? function(){ return txChar.writeValueWithoutResponse(data); } : null);
+    add('writeValueWithResponse', txChar.writeValueWithResponse ? function(){ return txChar.writeValueWithResponse(data); } : null);
+    add('writeValue', txChar.writeValue ? function(){ return txChar.writeValue(data); } : null);
+    // 重複を除く
+    var seen = {}, uniq = [];
+    for (var i=0;i<methods.length;i++){ if (!seen[methods[i][0]]) { seen[methods[i][0]] = 1; uniq.push(methods[i]); } }
+    var idx = 0;
+    function attempt(){
+      if (idx >= uniq.length) return Promise.reject(new Error('全ての書き込み方式が失敗しました'));
+      var m = uniq[idx++];
+      return Promise.resolve().then(m[1]).then(function(){
+        if (writeMethodOk !== m[0]) { writeMethodOk = m[0]; log('書き込み方式: ' + m[0] + ' が使えました'); }
+      }, function(err){
+        log('書き込み失敗 (' + m[0] + '): ' + (err && err.message ? err.message : err) + (err && err.code !== undefined ? ' / code: ' + err.code : ''));
+        return attempt();
+      });
+    }
+    return attempt();
+  }
+
   function enqueueWrite(bytes, label){
     writeChain = writeChain.then(function(){
       if (!txChar) { log(label + ' — 未接続のため送信をスキップしました'); return; }
       var data = new Uint8Array(bytes);
       log(label + ' → ' + hex(data));
-      // writeValueWithResponse が無い環境向けフォールバック
-      if (txChar.writeValueWithResponse) return txChar.writeValueWithResponse(data);
-      return txChar.writeValue(data);
+      return tryWrite(data);
     }).then(function(){
       // 次の書き込みまで少し空ける（GATT 競合回避）
       return new Promise(function(r){ setTimeout(r, 40); });
@@ -461,6 +491,7 @@
       return service.getCharacteristic(TX_CHAR).then(function(ch){
         txChar = ch;
         log('書き込み特性 ffe1 を取得しました。操作できます。');
+        if (ch.properties) log('ffe1 properties: write=' + !!ch.properties.write + ' / writeWithoutResponse=' + !!ch.properties.writeWithoutResponse + ' / notify=' + !!ch.properties.notify + ' / read=' + !!ch.properties.read);
         // 受信特性があれば通知も購読（無くてもエラーにしない）
         return service.getCharacteristic(RX_CHAR).then(function(rx){
           if (rx.properties && rx.properties.notify) {
