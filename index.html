@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>Tara X Controller</title>
+<style>
+  :root{
+    --bg:#f4f1ed;
+    --surface:#ffffff;
+    --surface-2:#ece8e2;
+    --ink:#1c1917;
+    --muted:#6b6560;
+    --line:#ddd6cc;
+    --teal:#0f766e;
+    --teal-ink:#ffffff;
+    --coral:#c2410c;
+    --coral-bg:#fff1e6;
+    --danger:#b91c1c;
+    --danger-bg:#fef2f2;
+    --ok:#15803d;
+    --warn-bg:#fffbeb;
+    --warn-line:#f59e0b;
+    --warn-ink:#92400e;
+    --log-bg:#1c1917;
+    --log-ink:#e7e5e4;
+    --radius:16px;
+    --radius-sm:10px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#121110;
+      --surface:#1e1c1a;
+      --surface-2:#2a2724;
+      --ink:#f5f0ea;
+      --muted:#a8a09a;
+      --line:#3a3632;
+      --teal:#2dd4bf;
+      --teal-ink:#04211d;
+      --coral:#fb923c;
+      --coral-bg:#2b1a0e;
+      --danger:#f87171;
+      --danger-bg:#2b1212;
+      --ok:#4ade80;
+      --warn-bg:#2a2106;
+      --warn-line:#d97706;
+      --warn-ink:#fbbf24;
+      --log-bg:#0a0908;
+      --log-ink:#d6d3d1;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family: "Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,-apple-system,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,[role="button"],select,summary,input:not([type="checkbox"],[type="radio"]){min-height:44px}
+  .wrap{max-width:600px;margin:0 auto;padding:20px 16px 40px}
+  /* Header */
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:6px}
+  .head h1{font-size:28px;line-height:1.15;margin:0;letter-spacing:-0.02em;font-weight:800}
+  .head p{margin:6px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
+  .status{
+    flex-shrink:0;display:inline-flex;align-items:center;gap:7px;
+    font-size:12px;font-weight:700;letter-spacing:.02em;
+    padding:8px 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface);
+    white-space:nowrap;margin-top:4px;
+  }
+  .dot{width:9px;height:9px;border-radius:50%;background:#a8a29e;flex-shrink:0}
+  .status.on .dot{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb, var(--ok) 18%, transparent)}
+  .status.err .dot{background:var(--danger)}
+
+  .notice{
+    margin:16px 0;padding:13px 14px;border-radius:var(--radius-sm);
+    background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);
+    font-size:13.5px;line-height:1.6;display:none;
+  }
+  .notice.show{display:block}
+  .notice strong{font-weight:800}
+  .search-help{
+    margin-top:12px;padding:12px 13px;border-radius:var(--radius-sm);
+    background:var(--surface-2);border:1px solid var(--line);
+    font-size:13.5px;line-height:1.65;display:none;
+  }
+  .search-help.show{display:block}
+  .search-help p{margin:0 0 6px}
+  .search-help .reload-link{
+    appearance:none;background:none;border:0;padding:6px 0 0;color:var(--teal);
+    font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;min-height:32px;
+  }
+  .log-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .btn-copy{background:var(--ink);color:var(--bg);flex:1;min-width:170px}
+  .copy-status{font-size:13px;color:var(--muted);margin:8px 0 0;min-height:20px}
+  .copy-status.ok{color:var(--ok);font-weight:700}
+  .copy-fallback{display:none;width:100%;margin-top:10px}
+  .copy-fallback.show{display:block}
+  .copy-fallback label{font-size:13px;font-weight:700;display:block;margin-bottom:6px}
+  .copy-fallback textarea{
+    width:100%;height:140px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.6;
+    padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  }
+
+  /* Cards */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-top:16px}
+  .card h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:800}
+  .card h2 span{text-transform:none;letter-spacing:0;font-weight:600}
+
+  /* Connection */
+  .conn-row{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{
+    appearance:none;border:0;cursor:pointer;font:inherit;font-weight:700;
+    border-radius:12px;padding:12px 18px;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    transition:transform .08s ease, opacity .15s ease;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn-primary{background:var(--teal);color:var(--teal-ink);flex:1;min-width:160px;font-size:16px}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+  .device-line{margin-top:12px;font-size:14px;color:var(--muted)}
+  .device-line b{color:var(--ink)}
+  .device-line code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--surface-2);padding:2px 6px;border-radius:6px}
+  .steps{margin:14px 0 0;padding:0 0 0 20px;font-size:14px;color:var(--muted)}
+  .steps li{margin:5px 0}
+  .steps li b{color:var(--ink)}
+
+  /* Controls */
+  .control{padding:16px 0;border-top:1px solid var(--line)}
+  .control:first-of-type{border-top:0;padding-top:2px}
+  .control-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:4px}
+  .control-name{font-size:17px;font-weight:800}
+  .control-sub{font-size:12.5px;color:var(--muted)}
+  .level-badge{
+    font-variant-numeric:tabular-nums;font-weight:800;font-size:22px;line-height:1;
+    min-width:64px;text-align:right;
+  }
+  .level-badge small{font-size:12px;color:var(--muted);font-weight:700}
+  .seg{display:flex;gap:8px;margin:12px 0 6px}
+  .seg button{
+    flex:1;padding:12px 4px;border-radius:10px;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);font:inherit;font-weight:700;font-size:15px;cursor:pointer;min-height:48px;
+  }
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .control.vibe .seg button[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+  .control.suction .seg button[aria-pressed="true"]{background:var(--coral);border-color:var(--coral);color:#fff}
+  @media (prefers-color-scheme: dark){
+    .control.suction .seg button[aria-pressed="true"]{color:#1a0e02}
+  }
+  input[type="range"]{width:100%;accent-color:var(--teal);height:36px;cursor:pointer}
+  .control.suction input[type="range"]{accent-color:var(--coral)}
+  .range-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:-2px;padding:0 2px}
+  .controls-disabled{opacity:.45;pointer-events:none;filter:saturate(.6)}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:10px}
+
+  .stop-btn{
+    width:100%;margin-top:18px;background:var(--danger);color:#fff;
+    font-size:18px;font-weight:800;padding:16px;border-radius:14px;letter-spacing:.04em;
+    box-shadow:0 6px 20px color-mix(in srgb, var(--danger) 28%, transparent);
+  }
+  @media (prefers-color-scheme: dark){ .stop-btn{color:#fff} }
+
+  /* Log & raw */
+  .log{
+    background:var(--log-bg);color:var(--log-ink);border-radius:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px;line-height:1.7;padding:12px 13px;height:168px;overflow:auto;white-space:pre-wrap;word-break:break-all;
+  }
+  .log .t{opacity:.55}
+  .raw-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .raw-row input{
+    flex:1;min-width:200px;font-family:ui-monospace,Menlo,monospace;font-size:14px;
+    padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  }
+  .raw-row .btn{flex-shrink:0}
+  details{margin-top:14px}
+  summary{cursor:pointer;font-weight:700;font-size:14px;padding:8px 0;min-height:36px;display:flex;align-items:center}
+  details p, details li{font-size:13.5px;color:var(--muted)}
+  details ul{padding-left:20px;margin:6px 0}
+  details code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+
+  footer{margin-top:22px;font-size:12.5px;color:var(--muted);line-height:1.7;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Tara X<br>Controller</h1>
+      <p>Bluefy から Web Bluetooth で直接つなぐ、<br>Intiface なしの実験用コントローラー</p>
+    </div>
+    <div class="status" id="statusBadge"><span class="dot"></span><span id="statusText">未接続</span></div>
+  </div>
+
+  <div class="notice" id="btNotice">
+    <strong>このブラウザでは Bluetooth が使えません。</strong><br>
+    iPhone では Safari / Chrome ではなく <b>Bluefy</b> でこのページを開いてください。Bluefy が Web Bluetooth を用意してくれます。
+  </div>
+
+  <!-- Connection -->
+  <section class="card" aria-labelledby="conn-h">
+    <h2 id="conn-h">接続</h2>
+    <div class="conn-row">
+      <button class="btn btn-primary" id="connectBtn">● 接続する</button>
+      <button class="btn btn-ghost" id="disconnectBtn" disabled>切断</button>
+    </div>
+    <div class="device-line" id="deviceLine">デバイス: <b>—</b> &nbsp;·&nbsp; 探す名前 <code>SX218A</code> / サービス <code>ffe0</code></div>
+    <ol class="steps">
+      <li>Tara X を<b>充電</b>して<b>電源 ON</b>（押す直前に入れ直す）</li>
+      <li><b>BeYourLover アプリを終了</b>しておく</li>
+      <li>「接続する」を押して <b>SX218A</b> を選ぶ</li>
+      <li>iPhone の<b>すぐ近く</b>に置く</li>
+    </ol>
+    <div class="search-help" id="searchHelp" role="status">
+      <p><strong>検索中です。</strong>30秒以上一覧が出ない場合は、ページを再読み込みしてやり直してください。</p>
+      <button type="button" class="reload-link" id="reloadBtn">ページを再読み込みする</button>
+    </div>
+  </section>
+
+  <!-- Controls -->
+  <section class="card" aria-labelledby="ctrl-h">
+    <h2 id="ctrl-h">操作 <span>— どちらも 0〜3 の4段階</span></h2>
+    <div id="controlsBody">
+      <div class="control vibe">
+        <div class="control-head">
+          <div><div class="control-name">振動</div><div class="control-sub">挿入部 · 出力 0</div></div>
+          <div class="level-badge" id="vibeVal">0 <small>/ 3</small></div>
+        </div>
+        <div class="seg" id="vibeSeg" role="group" aria-label="振動の強さ">
+          <button data-v="0" aria-pressed="true">切</button>
+          <button data-v="1" aria-pressed="false">1 弱</button>
+          <button data-v="2" aria-pressed="false">2 中</button>
+          <button data-v="3" aria-pressed="false">3 強</button>
+        </div>
+        <input type="range" id="vibeRange" min="0" max="3" step="1" value="0" aria-label="振動スライダー">
+        <div class="range-labels"><span>0</span><span>1</span><span>2</span><span>3</span></div>
+      </div>
+
+      <div class="control suction">
+        <div class="control-head">
+          <div><div class="control-name">吸引 / 脈動</div><div class="control-sub">外側 · 出力 1</div></div>
+          <div class="level-badge" id="suckVal">0 <small>/ 3</small></div>
+        </div>
+        <div class="seg" id="suckSeg" role="group" aria-label="吸引の強さ">
+          <button data-v="0" aria-pressed="true">切</button>
+          <button data-v="1" aria-pressed="false">1 弱</button>
+          <button data-v="2" aria-pressed="false">2 中</button>
+          <button data-v="3" aria-pressed="false">3 強</button>
+        </div>
+        <input type="range" id="suckRange" min="0" max="3" step="1" value="0" aria-label="吸引スライダー">
+        <div class="range-labels"><span>0</span><span>1</span><span>2</span><span>3</span></div>
+      </div>
+
+      <button class="btn stop-btn" id="stopBtn">■ すべて停止</button>
+      <p class="hint">未接続でもボタンは押せますが、送信は接続後に行われます。アプリ側の9パターンや加熱はこの方式では操作できません — 強さ4段階のみです。</p>
+    </div>
+  </section>
+
+  <!-- Log / debug -->
+  <section class="card" aria-labelledby="log-h">
+    <h2 id="log-h">ログ <span>— うまくいかない時はここを教えてください</span></h2>
+    <div class="log-actions">
+      <button class="btn btn-copy" id="copyLogBtn" type="button">ログをすべてコピー</button>
+      <button class="btn btn-ghost" id="clearLogBtn" type="button">ログ消去</button>
+    </div>
+    <div class="log" id="log" aria-live="polite"></div>
+    <p class="copy-status" id="copyStatus" role="status" aria-live="polite"></p>
+    <div class="copy-fallback" id="copyFallback">
+      <label for="copyFallbackText">自動コピーできなかったので、ここを長押し → すべて選択 → コピーしてください</label>
+      <textarea id="copyFallbackText" readonly></textarea>
+    </div>
+    <div class="raw-row">
+      <input id="rawInput" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="生バイト送信 例: 55 03 00 00 01 02" aria-label="生バイト（16進数）">
+      <button class="btn btn-ghost" id="rawSendBtn">送信</button>
+    </div>
+    <details>
+      <summary>送信しているバイトについて</summary>
+      <p>Buttplug の Svakom / Tara X 実装をベースにした形式です。書き込み先は <code>ffe1</code> です。</p>
+      <ul>
+        <li>振動: <code>55 03 00 00 [01=ON / 00=OFF] [強さ 0–3]</code></li>
+        <li>吸引: <code>55 09 00 00 [強さ 0–3] FF</code>（振動の 40ms 後に送信）</li>
+        <li>実機で反応が違う場合は、上の生バイト欄で別パターンを試してログで切り分けできます。</li>
+      </ul>
+    </details>
+  </section>
+
+  <footer>
+    このページは https で開いた時のみ Bluetooth が動きます。<br>
+    同じ Wi-Fi の他人に見せないよう、URL の共有にはご注意ください。
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var SERVICE = 0xffe0;
+  var TX_CHAR = 0xffe1;
+  var RX_CHAR = 0xffe2;
+
+  var logEl = document.getElementById('log');
+  var statusBadge = document.getElementById('statusBadge');
+  var statusText = document.getElementById('statusText');
+  var connectBtn = document.getElementById('connectBtn');
+  var disconnectBtn = document.getElementById('disconnectBtn');
+  var deviceLine = document.getElementById('deviceLine');
+  var btNotice = document.getElementById('btNotice');
+
+  var device = null;
+  var txChar = null;
+  var state = { vibe: 0, suck: 0 };
+  var writeChain = Promise.resolve();
+  var connecting = false;
+  var searchTimers = [];
+  var searchHelp = document.getElementById('searchHelp');
+  var connectBtnLabel = connectBtn.textContent;
+
+  function ts(){
+    var d = new Date();
+    function p(n){ return (n<10?'0':'')+n; }
+    return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+  }
+  function log(msg){
+    var line = document.createElement('div');
+    var t = document.createElement('span'); t.className='t'; t.textContent = '['+ts()+'] ';
+    line.appendChild(t);
+    line.appendChild(document.createTextNode(msg));
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function hex(bytes){
+    return Array.prototype.map.call(bytes, function(b){ return ('0'+b.toString(16)).slice(-2).toUpperCase(); }).join(' ');
+  }
+  function setStatus(mode, text){
+    statusBadge.className = 'status' + (mode ? ' '+mode : '');
+    statusText.textContent = text;
+  }
+
+  // --- Bluetooth availability ---
+  if (!navigator.bluetooth) {
+    btNotice.classList.add('show');
+    connectBtn.disabled = true;
+    log('navigator.bluetooth がありません。Bluefy で開いているか確認してください。');
+  } else {
+    log('Web Bluetooth が使えます。接続する準備ができました。');
+    log('ブラウザ: ' + (navigator.userAgent || '不明'));
+    // getAvailability() は呼ばない。Bluefy ではこの呼び出しが応答を返さず、
+    // ネイティブ側の処理が詰まって後続の requestDevice まで進まなくなる
+    // ことがあるため（実際に過去ログで毎回無応答だった）。
+    log('表示モード: ' + (window.self === window.top ? '単独ページ' : 'iframe の中'));
+  }
+  document.getElementById('reloadBtn').addEventListener('click', function(){ location.reload(); });
+
+  function enqueueWrite(bytes, label){
+    writeChain = writeChain.then(function(){
+      if (!txChar) { log(label + ' — 未接続のため送信をスキップしました'); return; }
+      var data = new Uint8Array(bytes);
+      log(label + ' → ' + hex(data));
+      // writeValueWithResponse が無い環境向けフォールバック
+      if (txChar.writeValueWithResponse) return txChar.writeValueWithResponse(data);
+      return txChar.writeValue(data);
+    }).then(function(){
+      // 次の書き込みまで少し空ける（GATT 競合回避）
+      return new Promise(function(r){ setTimeout(r, 40); });
+    }).catch(function(err){
+      log('書き込みエラー: ' + (err && err.message ? err.message : err));
+    });
+    return writeChain;
+  }
+
+  function sendVibe(level){
+    enqueueWrite([0x55, 0x03, 0x00, 0x00, level > 0 ? 0x01 : 0x00, level], '振動 ' + level);
+  }
+  function sendSuck(level){
+    enqueueWrite([0x55, 0x09, 0x00, 0x00, level, 0xff], '吸引 ' + level);
+  }
+
+  // --- Connect ---
+  function clearSearchTimers(){
+    for (var i=0;i<searchTimers.length;i++) clearTimeout(searchTimers[i]);
+    searchTimers = [];
+  }
+  function endConnectAttempt(){
+    connecting = false;
+    clearSearchTimers();
+    if (searchHelp) searchHelp.classList.remove('show');
+    if (connectBtn.textContent !== connectBtnLabel) connectBtn.textContent = connectBtnLabel;
+  }
+  function onDisconnected(){
+    log('切断されました。');
+    setStatus('', '未接続');
+    txChar = null;
+    endConnectAttempt();
+    connectBtn.disabled = !navigator.bluetooth ? true : false;
+    disconnectBtn.disabled = true;
+    deviceLine.innerHTML = 'デバイス: <b>—</b> &nbsp;·&nbsp; 探す名前 <code>SX218A</code> / サービス <code>ffe0</code>';
+  }
+
+  connectBtn.addEventListener('click', function(){
+    if (!navigator.bluetooth) return;
+    if (connecting) { log('すでに検索中です。'); return; }
+    connecting = true;
+    setStatus('', '検索中…');
+    log('デバイスを検索します。Bluefy の一覧から SX218A を選んでください。');
+    // Bluefy で一覧表示が確認できた Google 公式サンプルと全く同じ呼び出し形にする:
+    // フィルタは名前のみ。サービス FFE0 のフィルタを混ぜると Bluefy が
+    // スキャンを開始できず一覧自体が出なくなるため入れない。
+    // （接続後の ffe0 利用は optionalServices で許可する）
+    var req;
+    try {
+      req = navigator.bluetooth.requestDevice({
+        filters: [
+          { name: 'SX218A' }
+        ],
+        optionalServices: [SERVICE]
+      });
+    } catch (e) {
+      req = Promise.reject(e);
+    }
+    connectBtn.disabled = true;
+    connectBtn.textContent = '検索中… 一覧から SX218A を選んでください';
+    if (searchHelp) searchHelp.classList.add('show');
+    searchTimers.push(setTimeout(function(){
+      log('まだデバイスが選ばれていません。');
+    }, 12000));
+    searchTimers.push(setTimeout(function(){
+      log('30秒経っても選ばれていません。検索は途中で止められないため、止まったままならページを再読み込みしてやり直してください。');
+    }, 30000));
+    req.then(function(dev){
+      clearSearchTimers();
+      if (searchHelp) searchHelp.classList.remove('show');
+      device = dev;
+      log('選択: ' + (dev.name || '(名前なし)') + ' / id: ' + dev.id);
+      if (dev.name && dev.name !== 'SX218A') {
+        log('注意: 選ばれたのは SX218A ではありません（' + dev.name + '）。ffe0 が無ければ接続は失敗します。その場合は切断して SX218A を選び直してください。');
+      }
+      deviceLine.innerHTML = 'デバイス: <b>' + (dev.name || 'SX218A') + '</b> &nbsp;·&nbsp; サービス <code>ffe0</code> / 書き込み <code>ffe1</code>';
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+      setStatus('', '接続中…');
+      connectBtn.textContent = '接続中…';
+      return device.gatt.connect();
+    }).then(function(server){
+      log('GATT 接続 OK。サービス ffe0 を取得します。');
+      return server.getPrimaryService(SERVICE).catch(function(err){
+        // ffe0 が取れない場合、実際に見えているサービスをログに出して切り分ける
+        log('サービス ffe0 が取得できませんでした: ' + (err && err.message ? err.message : err));
+        if (server.getPrimaryServices) {
+          return server.getPrimaryServices().then(function(list){
+            if (!list || !list.length) { log('見つかったサービス: なし'); }
+            for (var i=0;i<list.length;i++) log('見つかったサービス: ' + list[i].uuid);
+            throw err;
+          }, function(){ throw err; });
+        }
+        throw err;
+      });
+    }).then(function(service){
+      return service.getCharacteristic(TX_CHAR).then(function(ch){
+        txChar = ch;
+        log('書き込み特性 ffe1 を取得しました。操作できます。');
+        // 受信特性があれば通知も購読（無くてもエラーにしない）
+        return service.getCharacteristic(RX_CHAR).then(function(rx){
+          if (rx.properties && rx.properties.notify) {
+            return rx.startNotifications().then(function(){
+              rx.addEventListener('characteristicvaluechanged', function(ev){
+                var v = new Uint8Array(ev.target.value.buffer);
+                log('受信 ← ' + hex(v));
+              });
+              log('受信特性 ffe2 の通知を有効にしました。');
+            }).catch(function(){});
+          }
+        }).catch(function(){ log('受信特性 ffe2 はありません（問題ありません）。'); });
+      });
+    }).then(function(){
+      endConnectAttempt();
+      setStatus('on', '接続中');
+      connectBtn.disabled = true;
+      disconnectBtn.disabled = false;
+      log('接続できました。スライダー／ボタンで操作できます。');
+      // 現在のスライダー値を反映
+      if (state.vibe > 0) sendVibe(state.vibe);
+      if (state.suck > 0) sendSuck(state.suck);
+    }).catch(function(err){
+      endConnectAttempt();
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      if (err && err.name === 'NotFoundError') {
+        log('デバイスが選ばれませんでした（キャンセル、または見つかりません）。電源と BeYourLover アプリの終了を確認してください。');
+        setStatus('', '未接続');
+      } else {
+        log('接続エラー [' + (err && err.name ? err.name : 'Error') + ']: ' + (err && err.message ? err.message : err));
+        setStatus('err', '接続失敗');
+      }
+    });
+  });
+
+  disconnectBtn.addEventListener('click', function(){
+    stopAll();
+    setTimeout(function(){
+      if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
+      else onDisconnected();
+    }, 150);
+  });
+
+  // --- Controls ---
+  function bindControl(prefix, key, sendFn){
+    var seg = document.getElementById(prefix+'Seg');
+    var range = document.getElementById(prefix+'Range');
+    var val = document.getElementById(prefix+'Val');
+    var buttons = seg.querySelectorAll('button');
+    function render(level){
+      val.innerHTML = level + ' <small>/ 3</small>';
+      range.value = level;
+      for (var i=0;i<buttons.length;i++){
+        buttons[i].setAttribute('aria-pressed', String(Number(buttons[i].getAttribute('data-v')) === level));
+      }
+    }
+    function setLevel(level, fromRange){
+      level = Math.max(0, Math.min(3, Number(level)||0));
+      if (state[key] === level && !fromRange) { render(level); return; }
+      state[key] = level;
+      render(level);
+      sendFn(level);
+    }
+    for (var i=0;i<buttons.length;i++){
+      (function(btn){
+        btn.addEventListener('click', function(){ setLevel(btn.getAttribute('data-v')); });
+      })(buttons[i]);
+    }
+    range.addEventListener('input', function(){ setLevel(range.value, true); });
+    render(0);
+    return { setLevel: setLevel, render: render };
+  }
+  var vibeCtl = bindControl('vibe', 'vibe', sendVibe);
+  var suckCtl = bindControl('suck', 'suck', sendSuck);
+
+  function stopAll(){
+    state.vibe = 0; state.suck = 0;
+    vibeCtl.render(0); suckCtl.render(0);
+    document.getElementById('vibeRange').value = 0;
+    document.getElementById('suckRange').value = 0;
+    if (!txChar) { log('すべて停止: 未接続のため送信はスキップされます（表示は 0 に戻しました）。'); }
+    else { log('すべて停止を送信しました。'); }
+    sendVibe(0);
+    sendSuck(0);
+  }
+  document.getElementById('stopBtn').addEventListener('click', stopAll);
+
+  // --- Raw bytes ---
+  document.getElementById('rawSendBtn').addEventListener('click', function(){
+    var raw = document.getElementById('rawInput').value.trim();
+    if (!raw) { log('生バイトが空です。例: 55 03 00 00 01 02'); return; }
+    var parts = raw.replace(/0x/gi,'').split(/[\s,]+/).filter(Boolean);
+    var bytes = [];
+    for (var i=0;i<parts.length;i++){
+      var n = parseInt(parts[i], 16);
+      if (isNaN(n) || n < 0 || n > 255) { log('解釈できない値: ' + parts[i]); return; }
+      bytes.push(n);
+    }
+    enqueueWrite(bytes, '生バイト');
+  });
+  // --- Log copy (all) ---
+  function getLogText(){
+    var lines = [];
+    for (var i=0;i<logEl.children.length;i++) lines.push(logEl.children[i].textContent);
+    if (!lines.length) lines.push('(ログは空です)');
+    var header = 'Tara X Controller ログ\n'
+      + '日時: ' + new Date().toLocaleString() + '\n'
+      + 'ブラウザ: ' + (navigator.userAgent || '不明') + '\n'
+      + '状態: ' + statusText.textContent + '\n'
+      + '---\n';
+    return header + lines.join('\n');
+  }
+  var copyStatus = document.getElementById('copyStatus');
+  var copyFallback = document.getElementById('copyFallback');
+  var copyFallbackText = document.getElementById('copyFallbackText');
+  function showCopyFallback(text){
+    copyFallbackText.value = text;
+    copyFallback.classList.add('show');
+    copyFallbackText.focus();
+    copyFallbackText.select();
+    try { copyFallbackText.setSelectionRange(0, text.length); } catch(e){}
+    copyStatus.textContent = '自動コピーできませんでした。下の欄を長押ししてコピーしてください。';
+    copyStatus.className = 'copy-status';
+  }
+  document.getElementById('copyLogBtn').addEventListener('click', function(){
+    var text = getLogText();
+    copyFallback.classList.remove('show');
+    copyStatus.textContent = 'コピー中…';
+    copyStatus.className = 'copy-status';
+    function onOk(){
+      copyStatus.textContent = 'コピーしました（' + text.split('\n').length + '行）。そのまま貼って送ってください。';
+      copyStatus.className = 'copy-status ok';
+      log('ログをコピーしました。');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onOk).catch(function(){ fallbackCopy(); });
+    } else {
+      fallbackCopy();
+    }
+    function fallbackCopy(){
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly','');
+        ta.style.position = 'fixed';
+        ta.style.top = '0';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try { ta.setSelectionRange(0, text.length); } catch(e){}
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+        document.body.removeChild(ta);
+        if (ok) onOk(); else showCopyFallback(text);
+      } catch(e){ showCopyFallback(text); }
+    }
+  });
+  document.getElementById('clearLogBtn').addEventListener('click', function(){
+    logEl.innerHTML='';
+    if (copyStatus) { copyStatus.textContent=''; copyStatus.className='copy-status'; }
+    if (copyFallback) copyFallback.classList.remove('show');
+    log('ログを消去しました。');
+  });
+
+  log('ページを読み込みました。Bluefy で開いている場合、そのまま「接続する」が使えます。');
+})();
+</script>
+</body>
+</html>
