@@ -37,23 +37,23 @@
 <div class="card">
   <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <p class="note">SX218A（Tara X）へ、下の 6 バイトをそのまま送ります。動かしたパケットだけが送られます。</p>
+  <p class="note">SX218A（Tara X）へ、下の 7 バイトをそのまま送ります。動かしたパケットだけが送られます。</p>
   <button id="connectBtn">デバイスを接続</button>
 </div>
 
 <div class="card" id="controls">
   <h2>振動</h2>
-  <div class="packetHex" id="vibeHex">55 03 00 00 00 00</div>
+  <div class="packetHex" id="vibeHex">55 03 00 00 00 00 00</div>
   <div id="vibeBytes"></div>
   <h2 style="margin-top:18px;">吸引</h2>
-  <div class="packetHex" id="suckHex">55 09 00 00 00 FF</div>
+  <div class="packetHex" id="suckHex">55 09 00 00 00 FF 00</div>
   <div id="suckBytes"></div>
   <div style="height:12px"></div>
   <button id="stopAllBtn">全部止める</button>
 </div>
 
 <div class="card">
-  <p class="note">各スライダーが 1 バイトです。左の数字は 1 バイト目から順です。範囲は 0〜255。最初は止まった状態で、振動 <code>55 03 00 00 00 00</code>、吸引 <code>55 09 00 00 00 FF</code> です。動かしたバイトを含む 6 バイトだけを送ります。</p>
+  <p class="note">各スライダーが 1 バイトです。左の数字は 1 バイト目から順です。範囲は 0〜255。7 バイト目は同じ系列の機体で末尾に付く <code>00</code> です。最初は振動 <code>55 03 00 00 00 00 00</code>、吸引 <code>55 09 00 00 00 FF 00</code> です。</p>
 </div>
 
 <div class="card">
@@ -100,8 +100,8 @@ $('copyLogBtn').addEventListener('click', function(){
 // ffe1 は writeWithoutResponse 専用。
 // 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
 // 動かしたパケットだけ送る。両方止めるときだけ、40ms 空けて順に送る。
-var VIBE_OFF = [0x55, 0x03, 0x00, 0x00, 0x00, 0x00];
-var SUCK_OFF = [0x55, 0x09, 0x00, 0x00, 0x00, 0xff];
+var VIBE_OFF = [0x55, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00];
+var SUCK_OFF = [0x55, 0x09, 0x00, 0x00, 0x00, 0xff, 0x00];
 var vibeBytes = VIBE_OFF.slice();
 var suckBytes = SUCK_OFF.slice();
 
