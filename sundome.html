@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>寸止めゲーム × Tara X</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; background: #110d13; color: #f5f0f3; line-height: 1.6; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 18px 16px 48px; }
+  h1 { font-size: 21px; margin: 0 0 4px; }
+  .lead { color: #b9adb5; font-size: 13px; margin: 0 0 14px; }
+  .card { background: #1d1720; border: 1px solid #342a37; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; color: #e9dce4; }
+  .card h2 small { color: #9d8f98; font-weight: normal; margin-left: 6px; }
+  .note { font-size: 12.5px; color: #b9adb5; margin: 8px 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { appearance: none; border: 1px solid #4a3d4e; background: #2a222d; color: #f5f0f3; border-radius: 999px; padding: 9px 14px; font-size: 14px; cursor: pointer; min-height: 40px; }
+  .chip[aria-pressed="true"] { background: #e75480; border-color: #e75480; color: #fff; font-weight: bold; }
+  .chip small { display: block; font-size: 11px; opacity: .85; font-weight: normal; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .row input[type=text] { width: 90px; background: #110d13; color: #fff; border: 1px solid #4a3d4e; border-radius: 8px; padding: 8px; font-size: 16px; }
+  label.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 10px; cursor: pointer; }
+  label.switch input { width: 20px; height: 20px; }
+  button.main { width: 100%; font-size: 17px; font-weight: bold; padding: 14px; border-radius: 12px; border: none; background: #e75480; color: #fff; cursor: pointer; }
+  button.sub { width: 100%; font-size: 15px; padding: 12px; border-radius: 12px; border: 1px solid #4a3d4e; background: #2a222d; color: #f5f0f3; cursor: pointer; margin-top: 8px; }
+  button:disabled { opacity: .45; cursor: default; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .two button.sub { margin-top: 0; }
+  input[type=range] { width: 100%; height: 34px; }
+  .hidden { display: none !important; }
+  .banner { background: #3a1f2c; border: 1px solid #e75480; border-radius: 12px; padding: 12px; font-size: 14px; margin-bottom: 14px; }
+  .toyStatus { font-size: 14px; }
+  .toyStatus .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #777; margin-right: 6px; }
+  .toyStatus.on .dot { background: #4caf50; }
+  .toyStatus.lost .dot { background: #e53935; }
+  .hist { font-size: 13px; color: #d5c8d0; margin: 0; padding-left: 18px; }
+  .hist li { margin: 2px 0; }
+  details summary { cursor: pointer; font-size: 13px; color: #b9adb5; }
+  #log { font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; color: #9f9; margin-top: 8px; }
+
+  /* play */
+  .hud { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  #timer { font-size: 40px; font-weight: bold; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  .hud .right { text-align: right; font-size: 13px; color: #d5c8d0; }
+  .bar { height: 6px; background: #2a222d; border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+  #bar { height: 100%; width: 0; background: #e75480; transition: width .25s linear; }
+  .stage { border-radius: 18px; padding: 22px 18px; min-height: 230px; display: flex; flex-direction: column; justify-content: center; text-align: center; transition: background .25s ease; position: relative; }
+  .stage.green { background: #1b5e20; }
+  .stage.yellow { background: #8d6e00; }
+  .stage.red { background: #8e0000; }
+  .stage.blue { background: #263a6b; }
+  .stage .label { font-size: 15px; font-weight: bold; letter-spacing: .08em; opacity: .9; }
+  .stage .text { font-size: 22px; font-weight: bold; margin: 10px 0; line-height: 1.5; }
+  .stage .subline { font-size: 14px; opacity: .9; }
+  .beat { position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.18); }
+  .beat.on { background: #fff; box-shadow: 0 0 18px #fff; }
+  #edgeBtn { margin-top: 14px; font-size: 20px; padding: 18px; background: #fff; color: #8e0000; }
+  #permitBtn { margin-top: 14px; font-size: 20px; padding: 18px; background: #fff; color: #1b5e20; }
+  .toyMeter { font-size: 12.5px; color: #d5c8d0; text-align: center; margin-top: 8px; min-height: 18px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #000c; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: 90%; z-index: 10; }
+
+  /* result */
+  #judge { font-size: 26px; font-weight: bold; text-align: center; margin: 4px 0; }
+  #resultLine { text-align: center; color: #e9dce4; margin: 6px 0 12px; }
+  #score { font-size: 52px; font-weight: bold; text-align: center; line-height: 1.1; }
+  #scoreTitle { text-align: center; color: #ffb3c9; font-weight: bold; margin-bottom: 8px; }
+  #resultDetail { text-align: center; font-size: 13px; color: #b9adb5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>寸止めゲーム × Tara X</h1>
+  <p class="lead">画面の色と拍に従って、時間まで我慢するゲームです。Tara X をつなぐと、指示に合わせて動きます。</p>
+
+  <!-- 年齢確認 -->
+  <section class="card" id="ageCard">
+    <h2>はじめに</h2>
+    <p class="note" style="margin-top:0">18 歳以上の方だけが使えます。体調が悪いとき、痛みや違和感があるときは、すぐにやめてください。設定と記録はこの端末の中だけに残ります。</p>
+    <div style="height:10px"></div>
+    <button class="main" id="ageOk">18 歳以上です</button>
+  </section>
+
+  <!-- 設定 -->
+  <section id="setup" class="hidden">
+    <div class="banner hidden" id="challengeBanner"></div>
+    <div class="card" id="memoryCard">
+      <h2>これまで</h2>
+      <p class="note" id="memorySummary" style="margin-top:0">まだ記録はありません。</p>
+      <ol class="hist" id="historyList"></ol>
+    </div>
+
+    <div class="card">
+      <h2>時間</h2>
+      <div class="chips" id="timeChips">
+        <button class="chip" data-v="3">3分</button>
+        <button class="chip" data-v="5">5分</button>
+        <button class="chip" data-v="10">10分</button>
+        <button class="chip" data-v="15">15分</button>
+        <button class="chip" data-v="30">30分</button>
+        <button class="chip" data-v="random">おまかせ<small>4〜12分・長さは秘密</small></button>
+        <button class="chip" data-v="custom">自分で決める</button>
+      </div>
+      <div class="row hidden" id="customRow">
+        <input type="text" id="customMin" inputmode="numeric" placeholder="1〜60" autocomplete="off"><span>分（1〜60。全角の数字でも入ります）</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="hideClock">残り時間を隠す</label>
+    </div>
+
+    <div class="card">
+      <h2>難しさ</h2>
+      <div class="chips" id="diffChips"></div>
+      <p class="note" id="diffNote"></p>
+    </div>
+
+    <div class="card">
+      <h2>指示役</h2>
+      <div class="chips" id="charaChips"></div>
+    </div>
+
+    <div class="card">
+      <h2>触れ方</h2>
+      <div class="chips" id="touchChips"></div>
+    </div>
+
+    <div class="card">
+      <h2>最後</h2>
+      <div class="chips" id="endingChips"></div>
+      <p class="note">抽選の確率は、「イきそう」で止めた回数ぶん上がります（1 回 5％、最大 20％）。</p>
+    </div>
+
+    <div class="card">
+      <h2>音</h2>
+      <label class="switch" style="margin-top:0"><input type="checkbox" id="soundOn">拍の音を鳴らす（緑と黄色のあいだ）</label>
+    </div>
+
+    <div class="card" id="toyCard">
+      <h2>Tara X<small>つながるおもちゃ</small></h2>
+      <div class="toyStatus" id="toyStatus"><span class="dot"></span><span id="toyStatusText">つながっていません</span></div>
+      <p class="note hidden" id="toyUnsupported">このブラウザでは Bluetooth が使えません。iPhone なら Bluefy、Android・パソコンなら Chrome で開いてください。</p>
+      <div class="two" style="margin-top:10px">
+        <button class="sub" id="toyConnect">つなぐ</button>
+        <button class="sub" id="toyTest" disabled>弱く 2 秒試す</button>
+      </div>
+      <div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;font-size:14px"><span>強さの上限</span><b id="toyCapValue">60%</b></div>
+        <input type="range" id="toyCap" min="10" max="100" step="10" value="60">
+      </div>
+      <label class="switch"><input type="checkbox" id="toySuck">吸引も、弱・中・強を自動で切り替える</label>
+      <p class="note">指示に合わせて強さを変えます。上げるのは 1 秒に上限の 20％まで。止めの指示・一時停止・画面を離れた・お預け・切断では、すぐ止めます。「イッていい」のあとは上限まで 10 秒動き、画面のどこかを押すとすぐ止まります。</p>
+      <details style="margin-top:8px">
+        <summary>送信ログ</summary>
+        <div id="log"></div>
+      </details>
+    </div>
+
+    <button class="main" id="startBtn">はじめる</button>
+    <div class="two" style="margin-top:8px">
+      <button class="sub" id="dailyBtn">今日の一本</button>
+      <button class="sub" id="challengeBtn">挑戦状リンクを作る</button>
+    </div>
+    <p class="note" id="dailyNote"></p>
+  </section>
+
+  <!-- プレイ中 -->
+  <section id="play" class="hidden">
+    <div class="hud">
+      <div id="timer">0:00</div>
+      <div class="right"><div id="hudInfo"></div><div>イきそう <b id="edgeCount">0</b> 回</div></div>
+    </div>
+    <div class="bar" id="barWrap"><div id="bar"></div></div>
+    <div class="stage blue" id="stage">
+      <div class="beat" id="beat"></div>
+      <div class="label" id="stageLabel">準備</div>
+      <div class="text" id="stageText">…</div>
+      <div class="subline" id="stageSub"></div>
+    </div>
+    <div class="toyMeter" id="toyMeter"></div>
+    <button class="main" id="edgeBtn">イきそう</button>
+    <button class="main hidden" id="permitBtn">イった</button>
+    <div class="two" style="margin-top:10px">
+      <button class="sub" id="pauseBtn">一時停止</button>
+      <button class="sub" id="pipBtn">小窓で表示</button>
+      <button class="sub" id="lostBtn">出ちゃった</button>
+      <button class="sub" id="quitBtn">やめる</button>
+    </div>
+    <p class="note" style="text-align:center">Space キーでも一時停止できます。</p>
+  </section>
+
+  <!-- 結果 -->
+  <section id="result" class="hidden">
+    <div class="card">
+      <div id="judge"></div>
+      <div id="resultLine"></div>
+      <div class="note" style="text-align:center;margin:0">我慢スコア</div>
+      <div id="score">0</div>
+      <div id="scoreTitle"></div>
+      <div id="resultDetail"></div>
+    </div>
+    <button class="main" id="againBtn">同じ設定でもう一度</button>
+    <div class="two" style="margin-top:8px">
+      <button class="sub" id="shareBtn">X で共有</button>
+      <button class="sub" id="resultChallengeBtn">挑戦状リンク</button>
+    </div>
+    <button class="sub" id="backBtn">設定に戻る</button>
+  </section>
+</div>
+<div id="toast" class="hidden"></div>
+
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+function pick(a){ return a[Math.floor(Math.random() * a.length)]; }
+function rand(a, b){ return a + Math.random() * (b - a); }
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+function fmt(sec){ sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
+function hex(bytes){ return Array.prototype.map.call(bytes, function(b){ return ('0' + b.toString(16)).slice(-2).toUpperCase(); }).join(' '); }
+
+var store = {
+  get: function(k, d){ try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+var KEY_AGE = 'tx_sundome_age_v1', KEY_SETTINGS = 'tx_sundome_settings_v1', KEY_HISTORY = 'tx_sundome_history_v1';
+
+var toastTimer = null;
+function toast(msg){
+  var el = $('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.add('hidden'); }, 3200);
+}
+
+// ---------- 遊びの決まり ----------
+var DIFFS = {
+  easy:   { label: 'やさしい', desc: '止めが少なく、最後はたいてい許される（許可 74%）。', permit: 0.74, stop: 0.12, segMin: 12, segMax: 20, stopMin: 5, stopMax: 9,  edgeWait: 20, push: 0,   mult: 1.0 },
+  normal: { label: 'ふつう',   desc: '止めがときどき入る。許可は半分くらい（48%）。',     permit: 0.48, stop: 0.2,  segMin: 10, segMax: 18, stopMin: 6, stopMax: 12, edgeWait: 18, push: 0.3, mult: 1.4 },
+  hard:   { label: 'きびしい', desc: '指示が短く切り替わり、止めが多い（許可 34%）。',     permit: 0.34, stop: 0.3,  segMin: 7,  segMax: 14, stopMin: 6, stopMax: 14, edgeWait: 15, push: 0.6, mult: 1.8 },
+  hell:   { label: '地獄級',   desc: '速い指示で追い込み、待ちは短い。許可はまれ（12%）。', permit: 0.12, stop: 0.25, segMin: 5,  segMax: 10, stopMin: 4, stopMax: 8,  edgeWait: 10, push: 1.0, mult: 2.4 }
+};
+var DIFF_KEYS = ['easy', 'normal', 'hard', 'hell'];
+var PACES = [null,
+  { key: 'slow',   name: 'ゆっくり', bpm: 60,  level: 0.3,  color: 'yellow' },
+  { key: 'normal', name: 'ふつう',   bpm: 90,  level: 0.5,  color: 'green' },
+  { key: 'fast',   name: '速く',     bpm: 130, level: 0.75, color: 'green' },
+  { key: 'max',    name: '全力',     bpm: 170, level: 0.95, color: 'green' }
+];
+var TOUCH = {
+  no:     { label: '指・手だけ', t: '触って',           off: '手を離して',       body: '太ももの内側をなでて' },
+  yes:    { label: 'おもちゃ',   t: 'おもちゃを当てて', off: 'おもちゃを離して', body: 'おもちゃを離して、太ももをなでて' },
+  nipple: { label: '乳首だけ',   t: '乳首を触って',     off: '手を離して',       body: '乳首の周りだけを、指先でなぞって' }
+};
+var TOUCH_KEYS = ['no', 'yes', 'nipple'];
+var ENDINGS = {
+  lottery: { label: '抽選' },
+  permit:  { label: '必ずイッていい' },
+  deny:    { label: '必ずお預け' },
+  ruined:  { label: '手を離してイく' }
+};
+var ENDING_KEYS = ['lottery', 'permit', 'deny', 'ruined'];
+
+var CHARAS = {
+  kanojo: { label: 'やさしい彼女', desc: '甘く見守る', lines: {
+    first: ['はじめまして。今日はわたしの言うとおりにしてね。'],
+    back: ['{n}回目だね。また来てくれてうれしい。', '{d}日ぶりだね。今日もいっしょにがんばろう。'],
+    backSameDay: ['今日もう一回？ 欲張りさんだね。'],
+    backDenied: ['この前はお預けだったよね。今日はどうなるかな。'],
+    backGranted: ['この前はちゃんと許してあげたよね。今日も我慢できる？'],
+    backLost: ['この前は途中で出ちゃったよね。今日は最後までね。'],
+    slow: ['ゆっくり{t}。急がなくていいよ。', 'そのまま、ゆっくりね。'],
+    normal: ['いつもの速さで{t}。', 'その調子。リズムに合わせて。'],
+    fast: ['少し速く{t}。', '速くしてみて。がんばって。'],
+    max: ['全力で{t}。でもイっちゃだめだよ。', 'いちばん速く。もう少しだけ。'],
+    tease: ['すごくゆっくり。焦らすみたいに。', '触れるか触れないかくらいで。'],
+    body: ['{body}。そこ以外はだめだよ。', 'ちょっと休憩。{body}。'],
+    stop: ['{off}。そのまま待ってて。', 'はい、ストップ。{off}。'],
+    edge: ['教えてくれてありがとう。{off}、おさまるまで待とうね。', 'えらいね。深呼吸して、待ってて。'],
+    resume: ['落ち着いた？ またゆっくり始めよう。'],
+    final: ['もうすぐ時間だよ。最後までがんばって。'],
+    judge: ['さあ、どうしようかな……'],
+    permit: ['よくがんばったね。イっていいよ。'],
+    ruined: ['イっていいよ。でも、その瞬間に{off}ね。'],
+    deny: ['今日はお預け。がんばったから、また次ね。'],
+    late: ['間に合わなかったね。今日はおしまい。'],
+    lost: ['出ちゃったか。大丈夫、また練習しようね。'],
+    quit: ['今日はここまでにしよっか。']
+  }},
+  senpai: { label: 'いじわるな先輩', desc: '焦らして楽しむ', lines: {
+    first: ['へえ、初めて？ ちゃんと言うこと聞けるかな。'],
+    back: ['また来たんだ。{n}回目だね。', '{d}日ぶり？ 我慢できなかったんだ。'],
+    backSameDay: ['今日二回目？ ほんと好きだね。'],
+    backDenied: ['この前はお預けだったっけ。ふふ、今日もそうしよっか。'],
+    backGranted: ['この前は甘くしすぎたかな。今日は厳しめね。'],
+    backLost: ['この前、途中で出しちゃったよね。今日はどうかな。'],
+    slow: ['ゆっくり{t}。勝手に速くしないで。', 'まだゆっくり。わかってるよね？'],
+    normal: ['普通の速さで{t}。', 'リズムに合わせて。ずれたらやり直しね。'],
+    fast: ['速く{t}。ほら、もっと。', '速くしていいよ。イったら負けだけど。'],
+    max: ['全力。止まっちゃだめ。', 'いちばん速く。……まだ我慢できるでしょ？'],
+    tease: ['すっごくゆっくり。もどかしい？', '触れるだけ。動かしたらだめ。'],
+    body: ['{body}。そっちはまだ触らせない。', '{body}。焦らされるの好きでしょ。'],
+    stop: ['はい、{off}。触ったら知らないよ。', 'ストップ。{off}。'],
+    edge: ['もう限界？ 早いなあ。{off}、待ってて。', 'ふふ、正直だね。{off}。'],
+    resume: ['落ち着いた？ じゃあ続き。'],
+    final: ['もうすぐ終わり。最後まで耐えられる？'],
+    judge: ['さて、どうしてあげよっかな。'],
+    permit: ['しょうがないなあ。イっていいよ。'],
+    ruined: ['イっていいよ。でもその瞬間に{off}。最後まで意地悪するね。'],
+    deny: ['だーめ。今日はお預け。'],
+    late: ['遅い。今日はもうおしまい。'],
+    lost: ['あーあ、出しちゃった。負けだね。'],
+    quit: ['逃げるんだ。まあ、また来なよ。']
+  }},
+  sensei: { label: '淡々とした先生', desc: '冷静に管理する', lines: {
+    first: ['初回ですね。指示に正確に従ってください。'],
+    back: ['{n}回目です。前回から{d}日。始めましょう。'],
+    backSameDay: ['本日二回目ですね。無理はしないように。'],
+    backDenied: ['前回は不許可でした。今回の結果はあなた次第です。'],
+    backGranted: ['前回は許可が出ました。今回も同じとは限りません。'],
+    backLost: ['前回は途中で達しました。今回は管理を意識してください。'],
+    slow: ['低速で{t}。', '速度を落として。一定に。'],
+    normal: ['通常の速度で{t}。', '拍に合わせてください。'],
+    fast: ['速度を上げて{t}。', '速く。呼吸は止めないで。'],
+    max: ['最大速度。', '全力で。限界の手前で知らせてください。'],
+    tease: ['極めて遅く。焦らしてください。', '軽く触れる程度に。'],
+    body: ['{body}。指示があるまで他は触れないこと。'],
+    stop: ['停止。{off}。', '{off}。指示を待ってください。'],
+    edge: ['申告を確認しました。{off}。鎮まるまで待機。'],
+    resume: ['再開します。低速から。'],
+    final: ['残りわずかです。'],
+    judge: ['判定します。'],
+    permit: ['許可します。達してください。'],
+    ruined: ['許可します。ただし達する瞬間に{off}。'],
+    deny: ['不許可です。本日は終了。'],
+    late: ['時間切れです。終了します。'],
+    lost: ['途中で達しました。記録します。'],
+    quit: ['中断を記録しました。']
+  }}
+};
+var CHARA_KEYS = ['kanojo', 'senpai', 'sensei'];
+
+function line(key, vars){
+  var c = CHARAS[settings.chara] || CHARAS.kanojo;
+  var t = TOUCH[settings.touch] || TOUCH.no;
+  vars = vars || {};
+  var list = c.lines[key] || [''];
+  if (vars.withTouch) {
+    var withT = list.filter(function(x){ return x.indexOf('{t}') >= 0; });
+    if (withT.length) list = withT;
+  }
+  var s = pick(list);
+  return s.replace(/\{t\}/g, t.t).replace(/\{off\}/g, t.off).replace(/\{body\}/g, t.body)
+    .replace(/\{n\}/g, vars.n == null ? '' : vars.n).replace(/\{d\}/g, vars.d == null ? '' : vars.d);
+}
+
+// ---------- 設定 ----------
+var DEFAULTS = { minutes: 5, random: false, custom: false, hideClock: false, diff: 'normal', chara: 'kanojo', touch: 'no', ending: 'lottery', sound: true, cap: 60, suck: true };
+var settings = Object.assign({}, DEFAULTS, store.get(KEY_SETTINGS, {}));
+if (!DIFFS[settings.diff]) settings.diff = DEFAULTS.diff;
+if (!CHARAS[settings.chara]) settings.chara = DEFAULTS.chara;
+if (!TOUCH[settings.touch]) settings.touch = DEFAULTS.touch;
+if (!ENDINGS[settings.ending]) settings.ending = DEFAULTS.ending;
+settings.cap = clamp(Math.round(Number(settings.cap) / 10) * 10 || 60, 10, 100);
+function saveSettings(){ store.set(KEY_SETTINGS, settings); }
+
+function buildChips(id, keys, labelOf, onPick){
+  var root = $(id);
+  root.innerHTML = '';
+  keys.forEach(function(k){
+    var b = document.createElement('button');
+    b.className = 'chip';
+    b.setAttribute('data-v', k);
+    b.innerHTML = labelOf(k);
+    b.addEventListener('click', function(){ onPick(k); syncSetup(); saveSettings(); });
+    root.appendChild(b);
+  });
+}
+function syncGroup(id, value){
+  var bs = $(id).querySelectorAll('.chip');
+  for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-pressed', String(bs[i].getAttribute('data-v') === value));
+}
+buildChips('diffChips', DIFF_KEYS, function(k){ return DIFFS[k].label; }, function(k){ settings.diff = k; });
+buildChips('charaChips', CHARA_KEYS, function(k){ return CHARAS[k].label + '<small>' + CHARAS[k].desc + '</small>'; }, function(k){ settings.chara = k; });
+buildChips('touchChips', TOUCH_KEYS, function(k){ return TOUCH[k].label; }, function(k){ settings.touch = k; });
+buildChips('endingChips', ENDING_KEYS, function(k){ return ENDINGS[k].label; }, function(k){ settings.ending = k; });
+
+Array.prototype.forEach.call($('timeChips').querySelectorAll('.chip'), function(b){
+  b.addEventListener('click', function(){
+    var v = b.getAttribute('data-v');
+    settings.random = v === 'random';
+    settings.custom = v === 'custom';
+    if (!settings.random && !settings.custom) settings.minutes = Number(v);
+    if (settings.custom) { $('customMin').value = String(settings.minutes); setTimeout(function(){ $('customMin').focus(); }, 0); }
+    syncSetup(); saveSettings();
+  });
+});
+function parseMinutes(raw){
+  var s = String(raw || '').replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).trim();
+  if (!/^\d{1,3}$/.test(s)) return null;
+  var n = Number(s);
+  return n >= 1 && n <= 60 ? n : null;
+}
+$('customMin').addEventListener('input', function(){
+  var n = parseMinutes($('customMin').value);
+  if (n !== null) { settings.minutes = n; saveSettings(); }
+  syncSetup();
+});
+$('hideClock').addEventListener('change', function(){ settings.hideClock = $('hideClock').checked; saveSettings(); });
+$('soundOn').addEventListener('change', function(){ settings.sound = $('soundOn').checked; saveSettings(); });
+
+function syncSetup(){
+  var timeValue = settings.random ? 'random' : settings.custom ? 'custom' : String(settings.minutes);
+  syncGroup('timeChips', timeValue);
+  $('customRow').classList.toggle('hidden', !settings.custom);
+  if (settings.custom && document.activeElement !== $('customMin')) $('customMin').value = String(settings.minutes);
+  $('hideClock').checked = !!settings.hideClock;
+  $('hideClock').disabled = settings.random;
+  $('soundOn').checked = !!settings.sound;
+  syncGroup('diffChips', settings.diff);
+  syncGroup('charaChips', settings.chara);
+  syncGroup('touchChips', settings.touch);
+  syncGroup('endingChips', settings.ending);
+  $('diffNote').textContent = DIFFS[settings.diff].desc;
+  var customBad = settings.custom && parseMinutes($('customMin').value) === null;
+  $('startBtn').disabled = customBad;
+  $('startBtn').textContent = customBad ? '分数を 1〜60 で入れてください' : 'はじめる';
+  $('toyCap').value = String(settings.cap);
+  $('toyCapValue').textContent = settings.cap + '%';
+  $('toySuck').checked = !!settings.suck;
+}
+
+// ---------- 記録（この端末の中だけ） ----------
+var RESULT_LABEL = { granted: '許可', ruined: '手放し', denied: 'お預け', late: '時間切れ', lost: '出ちゃった', quit: '中断' };
+function loadHistory(){ var h = store.get(KEY_HISTORY, []); return Array.isArray(h) ? h : []; }
+function dayDiff(a, b){
+  function d(ms){ return Math.floor((ms + 9 * 3600e3) / 86400e3); }
+  return d(b) - d(a);
+}
+function memoryLine(){
+  var h = loadHistory();
+  if (!h.length) return line('first');
+  var last = h[h.length - 1], days = dayDiff(last.at, Date.now());
+  var first = days === 0 ? line('backSameDay') : line('back', { n: h.length + 1, d: days });
+  var follow = last.result === 'denied' || last.result === 'late' ? line('backDenied')
+    : last.result === 'granted' || last.result === 'ruined' ? line('backGranted')
+    : last.result === 'lost' ? line('backLost') : '';
+  return follow ? first + ' ' + follow : first;
+}
+function renderHistory(){
+  var h = loadHistory();
+  $('historyList').innerHTML = '';
+  if (!h.length) { $('memorySummary').textContent = 'まだ記録はありません。'; return; }
+  var best = h.reduce(function(m, r){ return Math.max(m, r.score || 0); }, 0);
+  var last = h[h.length - 1];
+  $('memorySummary').textContent = h.length + ' 回遊びました。最高スコア ' + best + '。前回から ' + dayDiff(last.at, Date.now()) + ' 日。';
+  h.slice(-5).reverse().forEach(function(r){
+    var li = document.createElement('li');
+    var d = new Date(r.at);
+    li.textContent = (d.getMonth() + 1) + '/' + d.getDate() + '　' + (CHARAS[r.chara] ? CHARAS[r.chara].label : '') + '・' + r.minutes + '分・' + (DIFFS[r.diff] ? DIFFS[r.diff].label : '') + '　' + (RESULT_LABEL[r.result] || r.result) + '　' + r.score;
+    $('historyList').appendChild(li);
+  });
+}
+
+// ---------- 挑戦状と今日の一本 ----------
+var CH_TOUCH = { f: 'no', t: 'yes', n: 'nipple' };
+var CH_TOUCH_REV = { no: 'f', yes: 't', nipple: 'n' };
+function challengeUrl(){
+  var mins = settings.random ? 'r' : String(settings.minutes);
+  var c = [settings.chara, mins, settings.diff, CH_TOUCH_REV[settings.touch], settings.ending].join('.');
+  return location.origin + location.pathname + '?c=' + encodeURIComponent(c);
+}
+function describe(s){
+  return CHARAS[s.chara].label + '・' + (s.random ? 'おまかせ' : s.minutes + '分') + '・' + DIFFS[s.diff].label + '・' + TOUCH[s.touch].label + '・' + ENDINGS[s.ending].label;
+}
+function readChallenge(){
+  var c;
+  try { c = new URLSearchParams(location.search).get('c'); } catch (e) { return null; }
+  if (!c) return null;
+  var p = c.split('.');
+  if (p.length < 4) return null;
+  var mins = p[1] === 'r' ? null : parseMinutes(p[1]);
+  if (!CHARAS[p[0]] || (p[1] !== 'r' && mins === null) || !DIFFS[p[2]] || !CH_TOUCH[p[3]]) return null;
+  return { chara: p[0], random: p[1] === 'r', custom: false, minutes: mins || settings.minutes, diff: p[2], touch: CH_TOUCH[p[3]], ending: ENDINGS[p[4]] ? p[4] : 'lottery' };
+}
+function shareLink(url, text){
+  if (navigator.share) { navigator.share({ title: '寸止めゲーム × Tara X', text: text, url: url }).catch(function(){}); return; }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function(){ toast('挑戦状リンクをコピーしました'); }, function(){ prompt('このリンクをコピーしてください', url); });
+  } else prompt('このリンクをコピーしてください', url);
+}
+$('challengeBtn').addEventListener('click', function(){ shareLink(challengeUrl(), 'この設定で我慢できる？ ' + describe(settings)); });
+$('resultChallengeBtn').addEventListener('click', function(){ shareLink(challengeUrl(), 'この設定で我慢できる？ ' + describe(settings)); });
+
+function jstDate(){ return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
+function seeded(str){
+  var h = 2166136261;
+  for (var i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619) >>> 0;
+  return function(){
+    h = (h + 0x6D2B79F5) >>> 0;
+    var t = Math.imul(h ^ (h >>> 15), h | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function dailyPick(){
+  var r = seeded('tx-sundome-' + jstDate());
+  var diffs = ['easy', 'normal', 'normal', 'hard', 'hard', 'hell'];
+  return {
+    chara: CHARA_KEYS[Math.floor(r() * CHARA_KEYS.length)],
+    minutes: [5, 7, 10, 12, 15][Math.floor(r() * 5)],
+    diff: diffs[Math.floor(r() * diffs.length)],
+    ending: r() < 0.8 ? 'lottery' : 'deny',
+    random: false, custom: false
+  };
+}
+$('dailyBtn').addEventListener('click', function(){
+  Object.assign(settings, dailyPick());
+  saveSettings(); syncSetup();
+  $('dailyNote').textContent = '今日の一本（' + jstDate().slice(5).replace('-', '/') + '）：' + describe(settings) + '。触れ方はいまの設定のままです。';
+  toast('今日の一本を選びました');
+});
+
+// ---------- Tara X（Web Bluetooth） ----------
+var SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+var TX_CHAR = '0000ffe1-0000-1000-8000-00805f9b34fb';
+var logLines = [];
+function log(msg){
+  var t = new Date();
+  logLines.push('[' + ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2) + '] ' + msg);
+  if (logLines.length > 60) logLines = logLines.slice(-60);
+  $('log').textContent = logLines.join('\n');
+  $('log').scrollTop = 1e6;
+}
+
+// 振動：55 03 00 00 [5] [6] 00。5 は 1弱 2中 3強、6 は 0 で停止・1〜20。
+// 60 段を 弱1〜20 → 中1〜20 → 強1〜20 の順に並べる。吸引：55 09 00 00 [0〜3] FF 00。
+var VIBE_STEPS = 60;
+function vibeBytes(eff){
+  if (!(eff > 0)) return [0x55, 0x03, 0x00, 0x00, 0x01, 0x00, 0x00];
+  var steps = clamp(Math.ceil(eff * VIBE_STEPS - 1e-9), 1, VIBE_STEPS);
+  var mode = Math.ceil(steps / 20);
+  return [0x55, 0x03, 0x00, 0x00, mode, steps - (mode - 1) * 20, 0x00];
+}
+function suckTier(eff){ return !(eff > 0) ? 0 : eff < 0.4 ? 1 : eff < 0.7 ? 2 : 3; }
+function suckBytes(tier){ return [0x55, 0x09, 0x00, 0x00, tier, 0xff, 0x00]; }
+
+var toy = { device: null, ch: null, status: 'idle', cur: 0, lastAt: null, timer: null, sentVibe: null, sentSuck: null, testUntil: 0 };
+var writer = { busy: false, pending: { suck: null, vibe: null } };
+
+function queueWrite(kind, bytes){ writer.pending[kind] = bytes; flushWrites(); }
+function flushWrites(){
+  if (writer.busy) return;
+  var kind = writer.pending.suck ? 'suck' : writer.pending.vibe ? 'vibe' : null;
+  if (!kind) return;
+  var bytes = writer.pending[kind];
+  writer.pending[kind] = null;
+  if (!toy.ch) return;
+  writer.busy = true;
+  var ch = toy.ch, data = new Uint8Array(bytes);
+  log((kind === 'vibe' ? '振動' : '吸引') + ' → ' + hex(data));
+  var write = ch.writeValueWithoutResponse || ch.writeValue;
+  Promise.resolve().then(function(){ return write.call(ch, data); }).catch(function(e){
+    log('書き込みエラー: ' + (e && e.message ? e.message : e));
+  }).then(function(){
+    setTimeout(function(){ writer.busy = false; flushWrites(); }, 40);
+  });
+}
+function toyConnected(){ return toy.status === 'connected' && !!toy.ch; }
+function out(rel){
+  if (!toyConnected()) { toy.sentVibe = toy.sentSuck = null; return; }
+  var eff = rel > 0 ? clamp(rel, 0, 1) * settings.cap / 100 : 0;
+  var v = vibeBytes(eff), vKey = hex(v);
+  var s = settings.suck ? suckTier(eff) : 0;
+  // 吸引のあとに振動が消えたことがあるので、吸引を送ったら振動も送り直す。
+  var suckChanged = s !== toy.sentSuck;
+  if (suckChanged) { toy.sentSuck = s; queueWrite('suck', suckBytes(s)); }
+  if (suckChanged || vKey !== toy.sentVibe) { toy.sentVibe = vKey; queueWrite('vibe', v); }
+}
+function toyZero(){ toy.cur = 0; toy.lastAt = performance.now(); out(0); renderToyMeter(); }
+
+function pipOpen(){ return !!(pip && !pip.closed); }
+function visibleNow(){ return document.visibilityState === 'visible' || pipOpen(); }
+
+function toyGoal(){
+  if (toy.testUntil > performance.now()) return 0.3;
+  if (!visibleNow()) return 0;
+  if (S.phase === 'play') {
+    if (S.paused || !S.seg) return 0;
+    var lv = S.seg.level;
+    if (lv > 0) lv = Math.min(1, lv + 0.1 * clamp(S.elapsed / S.total, 0, 1));
+    return lv;
+  }
+  if (S.phase === 'finale') {
+    if (S.fin.step === 'judge') return 0.4;
+    if (S.fin.step === 'permit') return S.fin.toyStopped ? 0 : 1;
+  }
+  return 0;
+}
+var RAMP_UP_PER_SEC = 0.2, STALE_MS = 1500;
+function toyStep(){
+  if (!toyConnected()) return;
+  var t = performance.now(), goal = toyGoal();
+  if (toy.lastAt !== null && t - toy.lastAt > STALE_MS) toy.cur = 0;
+  if (goal <= toy.cur) toy.cur = goal;
+  else {
+    var dt = toy.lastAt === null ? 0 : Math.min(0.5, (t - toy.lastAt) / 1000);
+    toy.cur = Math.min(goal, toy.cur + RAMP_UP_PER_SEC * dt);
+  }
+  toy.lastAt = t;
+  out(toy.cur);
+  renderToyMeter();
+}
+function toyPoke(){ if (toyConnected()) toyStep(); }
+function startToyTimer(){ if (!toy.timer) toy.timer = setInterval(toyStep, 200); }
+
+function renderToyMeter(){
+  var el = $('toyMeter');
+  if (!toyConnected()) { el.textContent = toy.status === 'lost' ? 'Tara X とのつながりが切れました' : ''; return; }
+  if (!(toy.cur > 0)) { el.textContent = 'Tara X：止まっています'; return; }
+  var eff = toy.cur * settings.cap / 100, v = vibeBytes(eff);
+  var s = settings.suck ? suckTier(eff) : 0;
+  el.textContent = 'Tara X：振動 ' + ['', '弱', '中', '強'][v[4]] + ' ' + v[5] + '/20' + (settings.suck ? '・吸引 ' + ['止', '弱', '中', '強'][s] : '') + '（' + Math.round(eff * 100) + '%）';
+}
+function syncToyUi(){
+  var supported = !!(navigator.bluetooth && navigator.bluetooth.requestDevice);
+  $('toyUnsupported').classList.toggle('hidden', supported);
+  $('toyConnect').disabled = !supported || toy.status === 'connecting';
+  $('toyConnect').textContent = toy.status === 'connected' ? '切る' : toy.status === 'lost' ? 'つなぎ直す' : toy.status === 'connecting' ? 'つないでいます…' : 'つなぐ';
+  $('toyTest').disabled = !toyConnected();
+  $('toyStatus').className = 'toyStatus' + (toy.status === 'connected' ? ' on' : toy.status === 'lost' ? ' lost' : '');
+  $('toyStatusText').textContent = toy.status === 'connected' ? 'つながっています（SX218A）' : toy.status === 'connecting' ? 'つないでいます…' : toy.status === 'lost' ? 'つながりが切れました' : 'つながっていません';
+  $('hudInfo').textContent = toyConnected() ? 'Tara X 接続中' : '';
+}
+function onToyLost(){
+  toy.ch = null; toy.sentVibe = toy.sentSuck = null;
+  writer.pending.suck = writer.pending.vibe = null; writer.busy = false;
+  if (toy.status !== 'idle') toy.status = 'lost';
+  syncToyUi(); renderToyMeter();
+  log('切断されました');
+  if (S.phase === 'play' || S.phase === 'finale') toast('Tara X とのつながりが切れました。止まっています。');
+}
+function openDevice(dev){
+  toy.status = 'connecting'; syncToyUi();
+  return dev.gatt.connect().then(function(server){
+    return server.getPrimaryService(SERVICE);
+  }).then(function(service){
+    return service.getCharacteristic(TX_CHAR);
+  }).then(function(ch){
+    toy.ch = ch; toy.status = 'connected';
+    log('つながりました: ' + (dev.name || 'SX218A'));
+    toy.sentVibe = toy.sentSuck = null;
+    toyZero();
+    startToyTimer();
+    syncToyUi();
+  });
+}
+$('toyConnect').addEventListener('click', function(){
+  if (toy.status === 'connected') {
+    toyZero();
+    var d = toy.device;
+    setTimeout(function(){
+      toy.status = 'idle'; toy.ch = null;
+      try { if (d && d.gatt && d.gatt.connected) d.gatt.disconnect(); } catch (e) {}
+      syncToyUi(); renderToyMeter();
+    }, 150);
+    return;
+  }
+  if (!navigator.bluetooth) return;
+  var req;
+  if (toy.status === 'lost' && toy.device) req = Promise.resolve(toy.device);
+  else {
+    try { req = navigator.bluetooth.requestDevice({ filters: [{ name: 'SX218A' }], optionalServices: [SERVICE] }); }
+    catch (e) { req = Promise.reject(e); }
+  }
+  req.then(function(dev){
+    if (toy.device !== dev) {
+      toy.device = dev;
+      dev.addEventListener('gattserverdisconnected', function(){ if (toy.device === dev) onToyLost(); });
+    }
+    return openDevice(dev);
+  }).catch(function(e){
+    toy.status = toy.device && toy.status !== 'idle' ? 'lost' : 'idle';
+    toy.ch = null;
+    syncToyUi();
+    var msg = e && e.name === 'NotFoundError' ? '機器が選ばれませんでした。電源と公式アプリの終了を確認してください。' : 'つなげませんでした: ' + (e && e.message ? e.message : e);
+    log(msg); toast(msg);
+  });
+});
+$('toyTest').addEventListener('click', function(){
+  if (!toyConnected()) return;
+  toy.testUntil = performance.now() + 2000;
+  toyPoke();
+  setTimeout(toyPoke, 2050);
+});
+$('toyCap').addEventListener('input', function(){
+  settings.cap = clamp(Number($('toyCap').value) || 60, 10, 100);
+  $('toyCapValue').textContent = settings.cap + '%';
+  saveSettings(); toyPoke();
+});
+$('toySuck').addEventListener('change', function(){ settings.suck = $('toySuck').checked; saveSettings(); toyPoke(); });
+
+// ---------- 拍（光と音） ----------
+var audio = null, beatTimer = null;
+function ensureAudio(){
+  if (audio || !(window.AudioContext || window.webkitAudioContext)) return;
+  try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+}
+function click(){
+  if (!audio || !settings.sound) return;
+  try {
+    var o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
+    o.frequency.value = 1100;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    o.connect(g); g.connect(audio.destination);
+    o.start(t); o.stop(t + 0.06);
+  } catch (e) {}
+}
+function currentBpm(){
+  if (S.phase !== 'play' || S.paused || !S.seg) return 0;
+  return S.seg.bpm || 0;
+}
+function flash(){
+  var els = [$('beat')];
+  if (pipOpen() && pip.document.getElementById('beat')) els.push(pip.document.getElementById('beat'));
+  els.forEach(function(el){ el.classList.add('on'); });
+  setTimeout(function(){ els.forEach(function(el){ el.classList.remove('on'); }); }, 120);
+}
+function beatLoop(){
+  clearTimeout(beatTimer);
+  if (S.phase !== 'play' && S.phase !== 'finale') return;
+  var bpm = currentBpm();
+  if (bpm > 0) { flash(); click(); }
+  beatTimer = setTimeout(beatLoop, bpm > 0 ? 60000 / bpm : 250);
+}
+
+// ---------- 画面を消さない ----------
+var wakeLock = null;
+function lockScreen(){
+  if (!navigator.wakeLock || !navigator.wakeLock.request) return;
+  navigator.wakeLock.request('screen').then(function(l){ wakeLock = l; }, function(){});
+}
+function unlockScreen(){ if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; } }
+
+// ---------- ゲームの進行 ----------
+var S = { phase: 'idle' };
+var tickTimer = null;
+
+function makeSeg(kind, opts){
+  var D = DIFFS[settings.diff];
+  var seg = { kind: kind, t0: S.elapsed, bpm: 0, level: 0, color: 'yellow', pace: 0 };
+  if (kind === 'go') {
+    var p = PACES[opts.pace];
+    seg.pace = opts.pace; seg.bpm = p.bpm; seg.level = p.level; seg.color = p.color;
+    seg.label = p.color === 'green' ? '触っていい・' + p.name : 'ゆっくり';
+    seg.text = opts.text || line(p.key);
+    seg.dur = (opts.dur || rand(D.segMin, D.segMax)) * 1000;
+  } else if (kind === 'tease') {
+    seg.bpm = 40; seg.level = 0.25; seg.label = '焦らす';
+    seg.text = opts.text || line('tease');
+    seg.dur = rand(D.segMin, D.segMax) * 1000;
+  } else if (kind === 'body') {
+    seg.bpm = 0; seg.level = 0.15; seg.label = 'ほかの場所';
+    seg.text = line('body');
+    seg.dur = rand(8, 14) * 1000;
+  } else if (kind === 'stop') {
+    seg.color = 'red'; seg.label = '止まれ';
+    seg.text = line('stop');
+    seg.dur = rand(D.stopMin, D.stopMax) * 1000;
+  } else if (kind === 'edge') {
+    seg.color = 'red'; seg.label = 'おさまるまで待つ';
+    seg.text = line('edge');
+    seg.dur = D.edgeWait * 1000;
+  } else if (kind === 'resume') {
+    var slow = PACES[1];
+    seg.pace = 1; seg.bpm = slow.bpm; seg.level = slow.level; seg.label = 'ゆっくり';
+    seg.text = line('resume');
+    seg.dur = 8000;
+  }
+  return seg;
+}
+function choosePace(){
+  var D = DIFFS[settings.diff], prog = clamp(S.elapsed / S.total, 0, 1);
+  return clamp(Math.round(1 + prog * 2 + D.push + (Math.random() - 0.5) * 1.6), 1, 4);
+}
+function nextSegment(){
+  var D = DIFFS[settings.diff], prev = S.seg ? S.seg.kind : null;
+  var remain = (S.total - S.elapsed) / 1000;
+  if (remain <= 30) {
+    var finalText = S.saidFinal ? null : line('final') + ' ' + line(settings.diff === 'easy' ? 'fast' : 'max');
+    S.saidFinal = true;
+    S.seg = makeSeg('go', { pace: settings.diff === 'easy' ? 3 : 4, text: finalText, dur: remain });
+  } else {
+    var r = Math.random();
+    var canStop = S.elapsed > 20000 && prev !== 'stop' && prev !== 'edge';
+    if (canStop && r < D.stop) S.seg = makeSeg('stop');
+    else if (r < D.stop + 0.12 && prev !== 'tease') S.seg = makeSeg('tease', {});
+    else if (r < D.stop + 0.2 && prev !== 'body') S.seg = makeSeg('body');
+    else S.seg = makeSeg('go', { pace: choosePace() });
+  }
+  S.seg.dur = Math.min(S.seg.dur, Math.max(1000, S.total - S.elapsed));
+  toyPoke(); beatLoop(); render();
+}
+
+function startGame(){
+  var mins = settings.random ? Math.round(rand(4, 12)) : settings.custom ? parseMinutes($('customMin').value) : settings.minutes;
+  if (!mins) return;
+  ensureAudio();
+  if (audio && audio.state === 'suspended') audio.resume();
+  S = {
+    phase: 'play', paused: false, elapsed: 0, total: mins * 60000, minutes: mins,
+    hidden: !!(settings.random || settings.hideClock), random: settings.random,
+    edges: 0, seg: null, lastT: performance.now(), saidFinal: false, fin: null
+  };
+  S.seg = makeSeg('go', { pace: 1, text: memoryLine() + ' ' + line('slow', { withTouch: true }), dur: 10 });
+  show('play');
+  lockScreen();
+  clearInterval(tickTimer);
+  tickTimer = setInterval(tick, 100);
+  startToyTimer();
+  toy.lastAt = performance.now(); toy.cur = 0;
+  toyPoke(); beatLoop(); render();
+}
+$('startBtn').addEventListener('click', startGame);
+$('againBtn').addEventListener('click', startGame);
+
+function tick(){
+  var t = performance.now(), dt = Math.min(1000, t - S.lastT);
+  S.lastT = t;
+  if (S.phase === 'play' && !S.paused) {
+    S.elapsed += dt;
+    if (S.elapsed >= S.total) beginFinale();
+    else if (S.elapsed - S.seg.t0 >= S.seg.dur) {
+      if (S.seg.kind === 'edge') { S.seg = makeSeg('resume'); toyPoke(); beatLoop(); }
+      else nextSegment();
+    }
+  } else if (S.phase === 'finale') {
+    var f = S.fin, since = t - f.t0;
+    if (f.step === 'judge' && since >= 5000) decide();
+    else if (f.step === 'permit' && since >= 10000) finish(settings.ending === 'ruined' ? 'ruined' : 'late');
+    else if (f.step === 'deny' && since >= 3500) finish('denied');
+  }
+  render();
+}
+
+function edge(){
+  if (S.phase !== 'play' || S.paused || (S.seg && S.seg.kind === 'edge')) return;
+  S.edges++;
+  S.seg = makeSeg('edge');
+  S.seg.dur = Math.min(S.seg.dur, Math.max(1000, S.total - S.elapsed));
+  toyPoke(); beatLoop(); render();
+}
+$('edgeBtn').addEventListener('click', edge);
+
+function setPaused(on){
+  if (S.phase !== 'play' || S.paused === on) return;
+  S.paused = on;
+  S.lastT = performance.now();
+  toyPoke(); beatLoop(); render();
+}
+$('pauseBtn').addEventListener('click', function(){ setPaused(!S.paused); });
+document.addEventListener('keydown', function(e){
+  if (e.code !== 'Space' || S.phase !== 'play') return;
+  var tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  e.preventDefault();
+  setPaused(!S.paused);
+});
+
+function permitChance(){
+  var D = DIFFS[settings.diff];
+  return Math.min(0.95, D.permit + Math.min(0.2, S.edges * 0.05));
+}
+function beginFinale(){
+  S.elapsed = S.total;
+  S.phase = 'finale';
+  S.fin = { step: 'judge', t0: performance.now(), toyStopped: false };
+  S.fin.text = line('judge');
+  toyPoke(); beatLoop(); render();
+}
+function decide(){
+  var e = settings.ending;
+  var allow = e === 'permit' || e === 'ruined' || (e === 'lottery' && Math.random() < permitChance());
+  S.fin = { step: allow ? 'permit' : 'deny', t0: performance.now(), toyStopped: false };
+  S.fin.text = allow ? line(e === 'ruined' ? 'ruined' : 'permit') : line('deny');
+  toyPoke(); render();
+}
+$('permitBtn').addEventListener('click', function(){
+  if (S.phase !== 'finale' || S.fin.step !== 'permit') return;
+  S.fin.toyStopped = true; toyPoke();
+  finish(settings.ending === 'ruined' ? 'ruined' : 'granted');
+});
+document.addEventListener('pointerdown', function(){
+  if (S.phase === 'finale' && S.fin && S.fin.step === 'permit' && !S.fin.toyStopped) { S.fin.toyStopped = true; toyPoke(); }
+}, true);
+
+$('lostBtn').addEventListener('click', function(){
+  if (S.phase !== 'play') return;
+  var was = S.paused; setPaused(true);
+  if (confirm('出ちゃった、で終わりますか？')) finish('lost'); else setPaused(was);
+});
+$('quitBtn').addEventListener('click', function(){
+  if (S.phase !== 'play' && S.phase !== 'finale') return;
+  var was = S.paused; setPaused(true);
+  if (confirm('やめますか？ 記録は「中断」で残ります。')) finish('quit'); else setPaused(was);
+});
+
+var TITLES = [[1200, '寸止めの達人'], [800, '限界の住人'], [500, '我慢上手'], [250, '見習い卒業'], [0, '見習い']];
+function scoreOf(result){
+  var D = DIFFS[settings.diff], sec = Math.min(S.elapsed, S.total) / 1000;
+  var base = sec * D.mult + S.edges * 20;
+  if (result === 'denied') base += 150;
+  else if (result === 'granted' || result === 'ruined') base += 100;
+  else if (result === 'late') base += 50;
+  else if (result === 'lost') base *= 0.5;
+  else if (result === 'quit') base *= 0.3;
+  return Math.round(base);
+}
+var lastResult = null;
+function finish(result){
+  if (S.phase !== 'play' && S.phase !== 'finale') return;
+  var lineKey = { granted: 'permit', ruined: 'ruined', denied: 'deny', late: 'late', lost: 'lost', quit: 'quit' }[result];
+  var lastLine = result === 'granted' || result === 'ruined' || result === 'denied' ? S.fin.text : line(lineKey);
+  S.phase = 'result';
+  clearInterval(tickTimer); tickTimer = null;
+  clearTimeout(beatTimer);
+  toyZero();
+  unlockScreen();
+  closePip();
+  var score = scoreOf(result);
+  var pct = Math.round(100 * Math.min(S.elapsed, S.total) / S.total);
+  var h = loadHistory();
+  h.push({ at: Date.now(), minutes: S.minutes, diff: settings.diff, chara: settings.chara, result: result, edges: S.edges, score: score, pct: pct });
+  store.set(KEY_HISTORY, h.slice(-200));
+  lastResult = { result: result, score: score, pct: pct };
+  var title = TITLES.filter(function(t){ return score >= t[0]; })[0][1];
+  $('judge').textContent = { granted: '許可が出ました', ruined: '手を離してイく', denied: 'お預け', late: '時間切れ', lost: '出ちゃった', quit: '中断' }[result];
+  $('resultLine').textContent = '「' + lastLine + '」';
+  $('score').textContent = String(score);
+  $('scoreTitle').textContent = title;
+  $('resultDetail').textContent = '続けた時間 ' + fmt(Math.min(S.elapsed, S.total) / 1000) + '（' + pct + '%）・イきそう ' + S.edges + ' 回・' + DIFFS[settings.diff].label + '・' + CHARAS[settings.chara].label;
+  show('result');
+  renderHistory();
+}
+$('backBtn').addEventListener('click', function(){ S = { phase: 'idle' }; show('setup'); syncSetup(); });
+$('shareBtn').addEventListener('click', function(){
+  if (!lastResult) return;
+  var text = '寸止めゲームで我慢スコア ' + lastResult.score + '（' + DIFFS[settings.diff].label + '・' + S.minutes + '分・イきそう ' + S.edges + ' 回・' + RESULT_LABEL[lastResult.result] + '）';
+  window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(challengeUrl()), '_blank', 'noopener');
+});
+
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'hidden') {
+    if (!pipOpen()) {
+      if (S.phase === 'play') setPaused(true);
+      if (S.phase === 'finale' && S.fin) S.fin.toyStopped = true;
+      toyZero();
+    }
+  } else if (S.phase === 'play' || S.phase === 'finale') lockScreen();
+});
+window.addEventListener('pagehide', function(){ toyZero(); });
+
+// ---------- 表示 ----------
+function show(id){
+  ['ageCard', 'setup', 'play', 'result'].forEach(function(k){ $(k).classList.toggle('hidden', k !== id); });
+  window.scrollTo(0, 0);
+}
+function view(){
+  if (S.phase === 'finale') {
+    var f = S.fin, left = function(ms){ return Math.max(0, Math.ceil((ms - (performance.now() - f.t0)) / 1000)); };
+    if (f.step === 'judge') return { color: 'blue', label: '判定', text: f.text, sub: left(5000) + ' 秒' };
+    if (f.step === 'permit') return { color: 'green', label: settings.ending === 'ruined' ? 'イく瞬間に手を離す' : 'イッていい', text: f.text, sub: 'あと ' + left(10000) + ' 秒' + (toyConnected() && !f.toyStopped ? '・画面を押すとおもちゃが止まります' : '') };
+    return { color: 'red', label: 'お預け', text: f.text, sub: '' };
+  }
+  if (S.paused) return { color: 'blue', label: '一時停止中', text: '「再開」か Space で戻ります。', sub: toyConnected() ? 'おもちゃは止まっています' : '' };
+  var s = S.seg, left2 = Math.max(0, Math.ceil((s.dur - (S.elapsed - s.t0)) / 1000));
+  var sub = s.kind === 'stop' || s.kind === 'edge' ? 'あと ' + left2 + ' 秒' : s.bpm ? '拍 ' + s.bpm + '（1 拍 1 往復）' : '';
+  if (S.saidFinal && !S.hidden) sub = 'ラスト 30 秒' + (sub ? '・' + sub : '');
+  return { color: s.color, label: s.label, text: s.text, sub: sub };
+}
+function render(){
+  if (S.phase !== 'play' && S.phase !== 'finale') return;
+  var v = view();
+  $('stage').className = 'stage ' + v.color;
+  $('stageLabel').textContent = v.label;
+  $('stageText').textContent = v.text;
+  $('stageSub').textContent = v.sub;
+  var remain = (S.total - S.elapsed) / 1000;
+  $('timer').textContent = S.hidden ? '?:??' : fmt(remain);
+  $('barWrap').classList.toggle('hidden', S.hidden);
+  $('bar').style.width = (100 * S.elapsed / S.total) + '%';
+  $('edgeCount').textContent = String(S.edges);
+  var fin = S.phase === 'finale', permitStep = fin && S.fin.step === 'permit';
+  $('edgeBtn').classList.toggle('hidden', fin);
+  $('edgeBtn').disabled = S.paused || (S.seg && S.seg.kind === 'edge');
+  $('permitBtn').classList.toggle('hidden', !permitStep);
+  $('permitBtn').textContent = settings.ending === 'ruined' ? 'イく瞬間に押す' : 'イった';
+  $('pauseBtn').textContent = S.paused ? '再開' : '一時停止';
+  $('pauseBtn').disabled = fin;
+  $('lostBtn').disabled = fin;
+  $('pipBtn').textContent = pipOpen() ? '小窓を閉じる' : '小窓で表示';
+  renderPip(v, remain);
+}
+
+// ---------- 小窓（Document Picture-in-Picture） ----------
+var pip = null;
+var PIP_CSS = 'body{margin:0;font-family:-apple-system,sans-serif;background:#110d13;color:#fff}' +
+  '.stage{height:100vh;box-sizing:border-box;padding:12px;display:flex;flex-direction:column;justify-content:center;text-align:center;position:relative}' +
+  '.green{background:#1b5e20}.yellow{background:#8d6e00}.red{background:#8e0000}.blue{background:#263a6b}' +
+  '.label{font-weight:bold;font-size:13px}.text{font-weight:bold;font-size:17px;margin:6px 0}.sub{font-size:12px}' +
+  '.timer{font-size:22px;font-weight:bold}.btns{display:flex;gap:6px;margin-top:8px}' +
+  'button{flex:1;padding:10px;border:none;border-radius:8px;font-size:14px;font-weight:bold}' +
+  '.beat{position:absolute;top:8px;right:8px;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.2)}.beat.on{background:#fff}';
+function openPip(){
+  if (pipOpen()) { closePip(); return; }
+  if (!window.documentPictureInPicture || !window.documentPictureInPicture.requestWindow) {
+    toast('この端末では小窓表示が使えません。パソコンの Chrome・Edge で使えます。');
+    return;
+  }
+  window.documentPictureInPicture.requestWindow({ width: 340, height: 260 }).then(function(w){
+    pip = w;
+    var st = w.document.createElement('style'); st.textContent = PIP_CSS; w.document.head.appendChild(st);
+    w.document.body.innerHTML = '<div class="stage blue" id="st"><div class="beat" id="beat"></div><div class="timer" id="tm"></div><div class="label" id="lb"></div><div class="text" id="tx"></div><div class="sub" id="sb"></div>' +
+      '<div class="btns"><button id="eg">イきそう</button><button id="ps">一時停止</button></div></div>';
+    w.document.getElementById('eg').addEventListener('click', edge);
+    w.document.getElementById('ps').addEventListener('click', function(){ setPaused(!S.paused); });
+    w.addEventListener('pagehide', function(){ pip = null; render(); });
+    render();
+  }).catch(function(){ toast('小窓を開けませんでした。'); });
+}
+function closePip(){ if (pipOpen()) { try { pip.close(); } catch (e) {} } pip = null; }
+function renderPip(v, remain){
+  if (!pipOpen()) return;
+  var d = pip.document;
+  d.getElementById('st').className = 'stage ' + v.color;
+  d.getElementById('tm').textContent = S.hidden ? '?:??' : fmt(remain);
+  d.getElementById('lb').textContent = v.label;
+  d.getElementById('tx').textContent = v.text;
+  d.getElementById('sb').textContent = v.sub;
+  d.getElementById('eg').disabled = S.phase !== 'play' || S.paused;
+  d.getElementById('ps').textContent = S.paused ? '再開' : '一時停止';
+}
+$('pipBtn').addEventListener('click', openPip);
+
+// ---------- はじめ ----------
+$('ageOk').addEventListener('click', function(){ store.set(KEY_AGE, true); show('setup'); });
+var ch = readChallenge();
+if (ch) {
+  Object.assign(settings, ch);
+  $('challengeBanner').textContent = '挑戦状が届いています：' + describe(settings) + '。この設定で「はじめる」を押してください。';
+  $('challengeBanner').classList.remove('hidden');
+}
+syncSetup();
+syncToyUi();
+renderHistory();
+show(store.get(KEY_AGE, false) ? 'setup' : 'ageCard');
+})();
+</script>
+</body>
+</html>
