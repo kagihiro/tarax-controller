@@ -151,12 +151,11 @@ function enqueueWrite(bytes, label){
   });
   return writeChain;
 }
-var VIBE_SPEED = [0x00, 0x01, 0x05, 0x0A];
+var VIBE_SPEED = [0x00, 0x04, 0x0A, 0x13];
 function sendLevels(v, s){
   v = Math.max(0, Math.min(3, v|0));
   var speed = VIBE_SPEED[v];
-  var bytes = speed === 0 ? [0x55, 0x03, 0x00, 0x00, 0x00, 0x00] : [0x55, 0x03, 0x00, 0x00, speed, 0x01];
-  enqueueWrite(bytes, '振動 ' + v);
+  enqueueWrite([0x55, 0x04, 0x03, 0x00, speed > 0 ? 0x01 : 0x00, speed], '振動 ' + v);
   enqueueWrite([0x55, 0x09, 0x00, 0x00, s, 0xff], '吸引 ' + s);
 }
 function stopToy(){ sendLevels(0, 0); }

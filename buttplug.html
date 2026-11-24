@@ -34,7 +34,7 @@
 <div class="card">
   <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <p class="note">SX218A（Tara X）へ直接送ります。振動 1 は <b>55 03 00 00 01 01</b>、振動 3 は <b>55 03 00 00 0A 01</b> です。吸引は 0〜3 のままです。</p>
+  <p class="note">SX218A（Tara X）へ直接送ります。振動 1 は <b>55 04 03 00 01 04</b>、振動 3 は <b>55 04 03 00 01 13</b> です。吸引は 0〜3 のままです。</p>
   <button id="connectBtn">デバイスを接続</button>
 </div>
 
@@ -51,7 +51,7 @@
 </div>
 
 <div class="card">
-  <p class="note">最後のバイトを <code>03</code> から <code>0A</code> に変えても強さは変わりません。オンになるパケットは 5 バイト目がいつも <code>01</code> だったので、強さはそこへ入れています。吸引は <code>55 09 00 00 [0〜3] FF</code> です。</p>
+  <p class="note"><code>55 03 00 00</code> の 5 バイト目はリズムです。強さは別コマンド <code>55 04 03 00 01 [速度 00〜13]</code> で、画面の 1 / 2 / 3 は速度 <code>04 / 0A / 13</code> です。吸引は <code>55 09 00 00 [0〜3] FF</code> です。</p>
 </div>
 
 <div class="card">
@@ -97,14 +97,13 @@ $('copyLogBtn').addEventListener('click', function(){
 // ffe1 は writeWithoutResponse 専用。
 // 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
 // 動かした方だけ送る。両方止めるときだけ、40ms 空けて順に送る。
-// 最終バイトを変えても体感が同じだった。オン中のパケットは 5 バイト目が 01 で固定。
-// 強さは 5 バイト目へ入れる。1/2/3 → 01/05/0A。末尾の 01 はオンの印。
-var VIBE_SPEED = [0x00, 0x01, 0x05, 0x0A];
+// 55 03 00 00 の 5 バイト目はリズム。強さは 55 04 03 の速度で、0〜19。
+// 画面の 1/2/3 は 04/0A/13。5 バイト目の 01 はオン、00 はオフ。
+var VIBE_SPEED = [0x00, 0x04, 0x0A, 0x13];
 function vibePacket(level){
   level = Math.max(0, Math.min(3, level|0));
   var speed = VIBE_SPEED[level];
-  if (speed === 0) return [0x55, 0x03, 0x00, 0x00, 0x00, 0x00];
-  return [0x55, 0x03, 0x00, 0x00, speed, 0x01];
+  return [0x55, 0x04, 0x03, 0x00, speed > 0 ? 0x01 : 0x00, speed];
 }
 function suckPacket(level){
   level = Math.max(0, Math.min(3, level|0));
