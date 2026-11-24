@@ -34,14 +34,14 @@
 <div class="card">
   <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <p class="note">SX218A（Tara X）へ直接送ります。振動 1 は <b>55 03 00 00 01 01</b>、振動 3 は <b>55 03 00 00 01 64</b> です。吸引は 0〜3 のままです。</p>
+  <p class="note">SX218A（Tara X）へ直接送ります。振動スライダーの 0〜100 が、最後のバイトの強さです。吸引は 0〜3 のままです。</p>
   <button id="connectBtn">デバイスを接続</button>
 </div>
 
 <div class="card" id="controls">
   <div class="sliderRow">
-    <div class="label"><span>振動（弱 1 / 中 2 / 強 3）</span><b id="vibeVal">0</b></div>
-    <input id="vibeRange" type="range" min="0" max="3" step="1" value="0">
+    <div class="label"><span>振動（0〜100）</span><b id="vibeVal">0</b></div>
+    <input id="vibeRange" type="range" min="0" max="100" step="1" value="0">
   </div>
   <div class="sliderRow">
     <div class="label"><span>吸引（0〜3）</span><b id="suckVal">0</b></div>
@@ -51,7 +51,7 @@
 </div>
 
 <div class="card">
-  <p class="note"><code>55 04 03</code> はこの機体では振動しません。5 バイト目はリズムなので <code>01</code> で固定し、強さは最後のバイトです。画面の 1 / 2 / 3 は <code>01 / 20 / 64</code>（100 段階の 1 / 32 / 100）です。</p>
+  <p class="note">5 バイト目はリズムなので <code>01</code> で固定しています。スライダーの数が、そのまま最後のバイトです。0 は <code>55 03 00 00 00 00</code>、50 は <code>55 03 00 00 01 32</code>、100 は <code>55 03 00 00 01 64</code> です。</p>
 </div>
 
 <div class="card">
@@ -74,7 +74,8 @@ function log(msg){
   var t = new Date();
   var line = '[' + ('0'+t.getHours()).slice(-2) + ':' + ('0'+t.getMinutes()).slice(-2) + ':' + ('0'+t.getSeconds()).slice(-2) + '] ' + msg;
   logLines.push(line);
-  $('log').textContent += line + '\n';
+  if (logLines.length > 80) logLines = logLines.slice(-80);
+  $('log').textContent = logLines.join('\n') + '\n';
   $('log').scrollTop = 1e6;
 }
 function hex(bytes){
@@ -97,13 +98,10 @@ $('copyLogBtn').addEventListener('click', function(){
 // ffe1 は writeWithoutResponse 専用。
 // 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
 // 動かした方だけ送る。両方止めるときだけ、40ms 空けて順に送る。
-// 55 04 03 はこの機体では無反応。55 03 00 00 に戻す。
-// 5 バイト目はリズムなので 01 固定。0 のときは 00 00 で止める。
-// 強さは最後のバイト。1/2/3 を 01/20/64 まで離す。
-var VIBE_SPEED = [0x00, 0x01, 0x20, 0x64];
+// 5 バイト目はリズムなので 01 固定。0 のときは止める。
+// スライダー 0〜100 を、最後のバイトへそのまま入れる。
 function vibePacket(level){
-  level = Math.max(0, Math.min(3, level|0));
-  var speed = VIBE_SPEED[level];
+  var speed = Math.max(0, Math.min(100, level|0));
   if (speed === 0) return [0x55, 0x03, 0x00, 0x00, 0x00, 0x00];
   return [0x55, 0x03, 0x00, 0x00, 0x01, speed];
 }
@@ -140,8 +138,17 @@ function enqueueWrite(bytes, label){
   return writeChain;
 }
 
+var vibeBusy = false;
+var vibeDirty = false;
 function sendVibe(){
-  enqueueWrite(vibePacket(levels.vibe), '振動 ' + levels.vibe);
+  if (vibeBusy) { vibeDirty = true; return; }
+  vibeBusy = true;
+  vibeDirty = false;
+  var level = levels.vibe;
+  enqueueWrite(vibePacket(level), '振動 ' + level).then(function(){
+    vibeBusy = false;
+    if (vibeDirty || levels.vibe !== level) sendVibe();
+  });
 }
 function sendSuck(){
   enqueueWrite(suckPacket(levels.suck), '吸引 ' + levels.suck);
