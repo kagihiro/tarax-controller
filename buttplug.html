@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Buttplug コントローラー</title>
+<title>Tara X コントローラー</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background: #111; color: #f5f5f5; }
@@ -11,38 +11,48 @@
   .card { background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
   button { font-size: 16px; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; width: 100%; background:#333; color:#fff; }
   button:disabled { opacity: .4; }
-  #initBtn { background: #444; font-weight: bold; }
-  #scanBtn { background: #e75480; color: #fff; font-weight: bold; }
+  #connectBtn { background: #e75480; color: #fff; font-weight: bold; }
   #stopAllBtn { background: #d32f2f; color: #fff; font-weight: bold; }
   #status { font-size: 14px; }
   #status .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#888; margin-right:6px; }
   #status.on .dot { background:#4caf50; }
-  .devName { font-size: 17px; font-weight: bold; margin-bottom: 8px; }
+  .note { font-size: 13px; color: #ccc; line-height: 1.6; }
+  .note code { color: #ffd54f; }
   .sliderRow { margin: 14px 0; }
   .sliderRow .label { font-size: 14px; color:#aaa; display:flex; justify-content:space-between; margin-bottom: 6px; }
   .sliderRow .label b { color:#ffd54f; font-size:16px; }
   input[type=range] { width: 100%; height: 36px; }
-  .btnRow { display:flex; gap:8px; }
-  .btnRow button { flex:1; }
   #log { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; color: #9f9; }
   .hidden { display: none; }
   .smallBtn { width:auto; padding: 6px 12px; font-size: 12px; }
+  .controls-off { opacity: .45; pointer-events: none; }
 </style>
 </head>
 <body>
-<h1>Buttplug コントローラー</h1>
+<h1>Tara X コントローラー</h1>
 
 <div class="card">
-  <div id="status"><span class="dot"></span><span id="statusText">未起動</span></div>
+  <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <button id="initBtn">Buttplug を起動</button>
-  <div style="height:10px"></div>
-  <button id="scanBtn" disabled>デバイスを探す</button>
-  <div style="height:10px"></div>
+  <p class="note">SX218A（Tara X）へ、実機で動くバイトを直接送ります。強さは振動・吸引とも <b>0〜3</b> です。</p>
+  <button id="connectBtn">デバイスを接続</button>
+</div>
+
+<div class="card" id="controls">
+  <div class="sliderRow">
+    <div class="label"><span>振動（0〜3）</span><b id="vibeVal">0</b></div>
+    <input id="vibeRange" type="range" min="0" max="3" step="1" value="0">
+  </div>
+  <div class="sliderRow">
+    <div class="label"><span>吸引（0〜3）</span><b id="suckVal">0</b></div>
+    <input id="suckRange" type="range" min="0" max="3" step="1" value="0">
+  </div>
   <button id="stopAllBtn">全部止める</button>
 </div>
 
-<div id="devices"></div>
+<div class="card">
+  <p class="note">Buttplug の Tara X 実装は振動を <code>55 03 00 00 [強さ] 02</code>、吸引を末尾 <code>00</code> で送ります。実機が動くのは振動 <code>55 03 00 00 [01=ON / 00=OFF] [強さ]</code>、吸引 <code>55 09 00 00 [強さ] FF</code> です。接続できても、その差でモーターは動きません。</p>
+</div>
 
 <div class="card">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -54,6 +64,10 @@
 </div>
 
 <script>
+var SERVICE = '0000ffe0-0000-1000-8000-00805f9b34fb';
+var TX_CHAR = '0000ffe1-0000-1000-8000-00805f9b34fb';
+var RX_CHAR = '0000ffe2-0000-1000-8000-00805f9b34fb';
+
 var $ = function(id){ return document.getElementById(id); };
 var logLines = [];
 function log(msg){
@@ -63,8 +77,11 @@ function log(msg){
   $('log').textContent += line + '\n';
   $('log').scrollTop = 1e6;
 }
+function hex(bytes){
+  return Array.prototype.map.call(bytes, function(b){ return ('0'+b.toString(16)).slice(-2).toUpperCase(); }).join(' ');
+}
 $('copyLogBtn').addEventListener('click', function(){
-  var text = 'Buttplug コントローラー ログ\n日時: ' + new Date().toLocaleString('ja-JP') + '\n---\n' + logLines.join('\n');
+  var text = 'Tara X コントローラー ログ\n日時: ' + new Date().toLocaleString('ja-JP') + '\n---\n' + logLines.join('\n');
   function fallback(){
     var ta = $('manualCopy');
     ta.classList.remove('hidden');
@@ -77,126 +94,140 @@ $('copyLogBtn').addEventListener('click', function(){
   } else fallback();
 });
 
-var client = null;
-var BP = null, WASM = null;
-
-$('initBtn').addEventListener('click', function(){
-  if (client) return;
-  $('initBtn').disabled = true;
-  $('statusText').textContent = '読み込み中…（数MBあります）';
-  log('ライブラリを読み込んでいます…');
-  Promise.all([
-    import('https://cdn.jsdelivr.net/npm/buttplug@3.2.1/dist/web/buttplug.mjs'),
-    import('https://cdn.jsdelivr.net/npm/buttplug-wasm@2.0.1/dist/buttplug-wasm.mjs')
-  ]).then(function(mods){
-    BP = mods[0]; WASM = mods[1];
-    log('ライブラリ読み込みOK');
-    client = new BP.ButtplugClient('Muse Controller');
-    client.addListener('deviceadded', onDeviceAdded);
-    client.addListener('deviceremoved', function(dev){
-      log('デバイスが外れました: ' + dev.name);
-      var el = $('dev-' + dev.index);
-      if (el) el.remove();
-    });
-    client.addListener('disconnect', function(){
-      $('status').className = '';
-      $('statusText').textContent = '切断';
-      $('scanBtn').disabled = true;
-      log('Buttplugから切断されました');
-    });
-    return client.connect(new WASM.ButtplugWasmClientConnector());
-  }).then(function(){
-    $('status').className = 'on';
-    $('statusText').textContent = 'Buttplug 起動済み';
-    $('scanBtn').disabled = false;
-    log('Buttplug 起動OK。「デバイスを探す」が使えます');
-  }).catch(function(err){
-    $('initBtn').disabled = false;
-    $('statusText').textContent = '起動失敗';
-    log('起動エラー: ' + (err && err.message ? err.message : err));
-  });
-});
-
-$('scanBtn').addEventListener('click', function(){
-  if (!client) return;
-  log('スキャン開始…（一覧からデバイスを選んでください）');
-  client.startScanning().catch(function(err){
-    log('スキャンエラー: ' + (err && err.message ? err.message : err));
-  });
-});
-
-$('stopAllBtn').addEventListener('click', function(){
-  if (!client) return;
-  client.stopAllDevices().then(function(){ log('全部止めました'); }).catch(function(){});
-  var inputs = document.querySelectorAll('input[type=range]');
-  for (var i=0;i<inputs.length;i++){ inputs[i].value = 0; inputs[i].dispatchEvent(new Event('input')); }
-});
-
-function onDeviceAdded(dev){
-  log('デバイス追加: ' + dev.name + ' (index ' + dev.index + ')');
-  var attrs = [];
-  try {
-    var sc = dev.messageAttributes && dev.messageAttributes.ScalarCmd;
-    if (sc) attrs = sc;
-  } catch(e) {}
-  log('ScalarCmd: ' + attrs.length + ' 件');
-  for (var i=0;i<attrs.length;i++){
-    log('  #' + attrs[i].Index + ' ' + attrs[i].ActuatorType + ' steps=' + attrs[i].StepCount + ' ' + (attrs[i].FeatureDescriptor || ''));
-  }
-
-  var card = document.createElement('div');
-  card.className = 'card';
-  card.id = 'dev-' + dev.index;
-  var html = '<div class="devName">' + dev.name + '</div>';
-
-  // ActuatorType ごとにグループ化（同じ種類の出力は配列で送る）
-  var groups = {};
-  attrs.forEach(function(a){
-    if (a.ActuatorType !== 'Vibrate' && a.ActuatorType !== 'Oscillate') return;
-    if (!groups[a.ActuatorType]) groups[a.ActuatorType] = [];
-    groups[a.ActuatorType].push(a);
-  });
-  var types = Object.keys(groups);
-  if (types.length === 0) {
-    html += '<div style="color:#aaa;font-size:14px;">操作できる出力（振動／吸引）が見つかりませんでした。ログを確認してください。</div>';
-  }
-  types.forEach(function(type){
-    groups[type].sort(function(a,b){ return a.Index - b.Index; });
-    groups[type].forEach(function(a, pos){
-      var label = (a.FeatureDescriptor || (type === 'Vibrate' ? '振動' : '吸引・脈動')) + (groups[type].length > 1 ? ' ' + (pos+1) : '');
-      html += '<div class="sliderRow"><div class="label"><span>' + label + '（0〜' + a.StepCount + '）</span><b id="val-' + dev.index + '-' + type + '-' + a.Index + '">0</b></div>' +
-        '<input type="range" min="0" max="' + a.StepCount + '" step="1" value="0" data-type="' + type + '" data-pos="' + pos + '" data-idx="' + a.Index + '"></div>';
-    });
-  });
-  html += '<div class="btnRow"><button data-stop="' + dev.index + '">このデバイスを止める</button></div>';
-  card.innerHTML = html;
-  $('devices').appendChild(card);
-
-  var state = {};
-  types.forEach(function(type){ state[type] = groups[type].map(function(){ return 0; }); });
-
-  card.querySelectorAll('input[type=range]').forEach(function(input){
-    input.addEventListener('input', function(){
-      var type = input.getAttribute('data-type');
-      var pos = Number(input.getAttribute('data-pos'));
-      var idx = input.getAttribute('data-idx');
-      var steps = Number(input.max);
-      state[type][pos] = Number(input.value) / steps;
-      $('val-' + dev.index + '-' + type + '-' + idx).textContent = input.value;
-      var arr = state[type].slice();
-      var p = (type === 'Vibrate') ? dev.vibrate(arr) : dev.oscillate(arr);
-      if (p && p.catch) p.catch(function(err){ log('送信エラー: ' + (err && err.message ? err.message : err)); });
-      log(dev.name + ' ' + type + ' → ' + arr.map(function(v){ return Math.round(v*100)/100; }).join(', '));
-    });
-  });
-  card.querySelector('[data-stop]').addEventListener('click', function(){
-    dev.stop().catch(function(){});
-    card.querySelectorAll('input[type=range]').forEach(function(inp){ inp.value = 0; inp.dispatchEvent(new Event('input')); });
-    log(dev.name + ' を止めました');
-  });
+// 実機で確認済み（index.html / game.html と同じ）。
+// ffe1 は writeWithoutResponse 専用。吸引は振動のあとに 40ms 空ける。
+function vibePacket(level){
+  level = Math.max(0, Math.min(3, level|0));
+  return [0x55, 0x03, 0x00, 0x00, level > 0 ? 0x01 : 0x00, level];
+}
+function suckPacket(level){
+  level = Math.max(0, Math.min(3, level|0));
+  return [0x55, 0x09, 0x00, 0x00, level, 0xff];
 }
 
-log('ページを読み込みました');
+var device = null;
+var txChar = null;
+var writeChain = Promise.resolve();
+var levels = { vibe: 0, suck: 0 };
+
+function setConnected(on){
+  $('status').className = on ? 'on' : '';
+  $('statusText').textContent = on ? '接続中: SX218A' : '未接続';
+  $('connectBtn').textContent = on ? '切断する' : 'デバイスを接続';
+  $('controls').className = on ? 'card' : 'card controls-off';
+}
+
+function enqueueWrite(bytes, label){
+  writeChain = writeChain.then(function(){
+    if (!txChar) { log(label + ' — 未接続のため送信をスキップしました'); return; }
+    var data = new Uint8Array(bytes);
+    log(label + ' → ' + hex(data));
+    var write = txChar.writeValueWithoutResponse || txChar.writeValue;
+    if (typeof write !== 'function') throw new Error('書き込み関数がありません');
+    return write.call(txChar, data);
+  }).then(function(){
+    return new Promise(function(r){ setTimeout(r, 40); });
+  }).catch(function(err){
+    log(label + ' 書き込みエラー: ' + (err && err.message ? err.message : err));
+  });
+  return writeChain;
+}
+
+function sendLevels(){
+  enqueueWrite(vibePacket(levels.vibe), '振動 ' + levels.vibe);
+  enqueueWrite(suckPacket(levels.suck), '吸引 ' + levels.suck);
+}
+
+function render(){
+  $('vibeRange').value = levels.vibe;
+  $('suckRange').value = levels.suck;
+  $('vibeVal').textContent = levels.vibe;
+  $('suckVal').textContent = levels.suck;
+}
+
+$('vibeRange').addEventListener('input', function(){
+  levels.vibe = Number($('vibeRange').value);
+  $('vibeVal').textContent = levels.vibe;
+  sendLevels();
+});
+$('suckRange').addEventListener('input', function(){
+  levels.suck = Number($('suckRange').value);
+  $('suckVal').textContent = levels.suck;
+  sendLevels();
+});
+$('stopAllBtn').addEventListener('click', function(){
+  levels.vibe = 0;
+  levels.suck = 0;
+  render();
+  sendLevels();
+  log('全部止めました');
+});
+
+function onDisconnected(){
+  txChar = null;
+  setConnected(false);
+  log('切断されました');
+}
+
+$('connectBtn').addEventListener('click', function(){
+  if (device && device.gatt && device.gatt.connected) {
+    device.gatt.disconnect();
+    return;
+  }
+  if (!navigator.bluetooth) {
+    log('このブラウザでは Web Bluetooth が使えません。Bluefy で開いてください。');
+    return;
+  }
+  log('デバイスを検索します。一覧から SX218A を選んでください。');
+  var req;
+  try {
+    // フィルタは名前だけ。サービスを混ぜると Bluefy で一覧が出ない。
+    req = navigator.bluetooth.requestDevice({
+      filters: [{ name: 'SX218A' }],
+      optionalServices: [SERVICE]
+    });
+  } catch (e) {
+    req = Promise.reject(e);
+  }
+  req.then(function(dev){
+    device = dev;
+    log('選択: ' + (dev.name || '(名前なし)'));
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    return device.gatt.connect();
+  }).then(function(server){
+    log('GATT 接続 OK。サービス ffe0 を取得します。');
+    return server.getPrimaryService(SERVICE);
+  }).then(function(service){
+    return service.getCharacteristic(TX_CHAR).then(function(ch){
+      txChar = ch;
+      var props = ch.properties || {};
+      log('書き込み特性 ffe1 を取得しました。write=' + !!props.write + ' / writeWithoutResponse=' + !!props.writeWithoutResponse);
+      setConnected(true);
+      log('接続できました。スライダーで操作できます。');
+      if (levels.vibe > 0 || levels.suck > 0) sendLevels();
+      return service.getCharacteristic(RX_CHAR).then(function(rx){
+        if (rx.properties && rx.properties.notify) {
+          return rx.startNotifications().then(function(){
+            rx.addEventListener('characteristicvaluechanged', function(ev){
+              log('受信 ← ' + hex(new Uint8Array(ev.target.value.buffer)));
+            });
+            log('受信特性 ffe2 の通知を有効にしました。');
+          }).catch(function(){});
+        }
+      }).catch(function(){ log('受信特性 ffe2 はありません（問題ありません）。'); });
+    });
+  }).catch(function(err){
+    if (err && err.name === 'NotFoundError') {
+      log('デバイスが選ばれませんでした。電源と公式アプリの終了を確認してください。');
+    } else {
+      log('接続エラー: ' + (err && err.message ? err.message : err));
+    }
+    setConnected(false);
+  });
+});
+
+setConnected(false);
+log('ページを読み込みました。Bluefy で「デバイスを接続」を押してください。');
 </script>
 </body>
 </html>
