@@ -34,13 +34,13 @@
 <div class="card">
   <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <p class="note">SX218A（Tara X）へ、実機で動くバイトを直接送ります。強さは振動・吸引とも <b>0〜3</b> です。</p>
+  <p class="note">SX218A（Tara X）へ直接送ります。画面の振動 1 / 2 / 3 は、機器の 10 段階では <b>03 / 07 / 0A</b> です。吸引は 0〜3 のままです。</p>
   <button id="connectBtn">デバイスを接続</button>
 </div>
 
 <div class="card" id="controls">
   <div class="sliderRow">
-    <div class="label"><span>振動（0〜3）</span><b id="vibeVal">0</b></div>
+    <div class="label"><span>振動（弱 1 / 中 2 / 強 3）</span><b id="vibeVal">0</b></div>
     <input id="vibeRange" type="range" min="0" max="3" step="1" value="0">
   </div>
   <div class="sliderRow">
@@ -51,7 +51,7 @@
 </div>
 
 <div class="card">
-  <p class="note">Buttplug の Tara X 実装は振動を <code>55 03 00 00 [強さ] 02</code>、吸引を末尾 <code>00</code> で送ります。実機が動くのは振動 <code>55 03 00 00 [01=ON / 00=OFF] [強さ]</code>、吸引 <code>55 09 00 00 [強さ] FF</code> です。接続できても、その差でモーターは動きません。</p>
+  <p class="note">振動は <code>55 03 00 00 01 [強さ]</code> です。強さは 10 段階（<code>01</code>〜<code>0A</code>）で、<code>03</code> は最大の約 3 割です。吸引は <code>55 09 00 00 [0〜3] FF</code> です。</p>
 </div>
 
 <div class="card">
@@ -94,12 +94,15 @@ $('copyLogBtn').addEventListener('click', function(){
   } else fallback();
 });
 
-// 実機で確認済み（index.html と同じ）。ffe1 は writeWithoutResponse 専用。
+// ffe1 は writeWithoutResponse 専用。
 // 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
 // 動かした方だけ送る。両方止めるときだけ、40ms 空けて順に送る。
+// 振動の最終バイトは 10 段階。画面の 1/2/3 を 03/07/0A に広げる。
+var VIBE_SPEED = [0x00, 0x03, 0x07, 0x0A];
 function vibePacket(level){
   level = Math.max(0, Math.min(3, level|0));
-  return [0x55, 0x03, 0x00, 0x00, level > 0 ? 0x01 : 0x00, level];
+  var speed = VIBE_SPEED[level];
+  return [0x55, 0x03, 0x00, 0x00, speed > 0 ? 0x01 : 0x00, speed];
 }
 function suckPacket(level){
   level = Math.max(0, Math.min(3, level|0));
