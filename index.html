@@ -282,7 +282,7 @@
       <summary>送信しているバイトについて</summary>
       <p>Buttplug の Svakom / Tara X 実装をベースにした形式です。書き込み先は <code>ffe1</code> です。</p>
       <ul>
-        <li>振動: <code>55 04 03 00 [01=ON / 00=OFF] [速度]</code>。画面の 1 / 2 / 3 は速度 <code>04 / 0A / 13</code>（0〜19）。<code>55 03</code> の 5 バイト目はリズムです。</li>
+        <li>振動: <code>55 03 00 00 01 [強さ]</code>。5 バイト目の <code>01</code> はリズム固定。画面の 1 / 2 / 3 は強さ <code>01 / 20 / 64</code>。</li>
         <li>吸引: <code>55 09 00 00 [強さ 0–3] FF</code>（振動の 40ms 後に送信）</li>
         <li>実機で反応が違う場合は、上の生バイト欄で別パターンを試してログで切り分けできます。</li>
       </ul>
@@ -371,11 +371,12 @@
     return writeChain;
   }
 
-  var VIBE_SPEED = [0x00, 0x04, 0x0A, 0x13];
+  var VIBE_SPEED = [0x00, 0x01, 0x20, 0x64];
   function sendVibe(level){
     level = Math.max(0, Math.min(3, level|0));
     var speed = VIBE_SPEED[level];
-    enqueueWrite([0x55, 0x04, 0x03, 0x00, speed > 0 ? 0x01 : 0x00, speed], '振動 ' + level);
+    var bytes = speed === 0 ? [0x55, 0x03, 0x00, 0x00, 0x00, 0x00] : [0x55, 0x03, 0x00, 0x00, 0x01, speed];
+    enqueueWrite(bytes, '振動 ' + level);
   }
   function sendSuck(level){
     enqueueWrite([0x55, 0x09, 0x00, 0x00, level, 0xff], '吸引 ' + level);
