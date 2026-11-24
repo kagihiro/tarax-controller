@@ -18,10 +18,13 @@
   #status.on .dot { background:#4caf50; }
   .note { font-size: 13px; color: #ccc; line-height: 1.6; }
   .note code { color: #ffd54f; }
-  .sliderRow { margin: 14px 0; }
-  .sliderRow .label { font-size: 14px; color:#aaa; display:flex; justify-content:space-between; margin-bottom: 6px; }
-  .sliderRow .label b { color:#ffd54f; font-size:16px; }
-  input[type=range] { width: 100%; height: 36px; }
+  .packetHex { font-family: ui-monospace, monospace; color:#ffd54f; font-size: 18px; letter-spacing: .04em; margin: 4px 0 10px; }
+  .byteRow { display:flex; align-items:center; gap: 8px; margin: 6px 0; }
+  .byteRow .idx { width: 16px; color:#888; font-size: 12px; text-align: right; }
+  .byteRow input[type=range] { flex: 1; height: 32px; min-width: 0; }
+  .byteRow input[type=number] { width: 68px; background:#111; color:#fff; border:1px solid #444; border-radius: 8px; padding: 6px 4px; font-size: 16px; }
+  .byteHex { width: 28px; color:#ffd54f; font-family: ui-monospace, monospace; font-size: 13px; }
+  h2 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
   #log { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; color: #9f9; }
   .hidden { display: none; }
   .smallBtn { width:auto; padding: 6px 12px; font-size: 12px; }
@@ -34,24 +37,23 @@
 <div class="card">
   <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <p class="note">SX218A（Tara X）へ直接送ります。振動スライダーの 0〜100 が、最後のバイトの強さです。吸引は 0〜3 のままです。</p>
+  <p class="note">SX218A（Tara X）へ、下の 6 バイトをそのまま送ります。動かしたパケットだけが送られます。</p>
   <button id="connectBtn">デバイスを接続</button>
 </div>
 
 <div class="card" id="controls">
-  <div class="sliderRow">
-    <div class="label"><span>振動（0〜100）</span><b id="vibeVal">0</b></div>
-    <input id="vibeRange" type="range" min="0" max="100" step="1" value="0">
-  </div>
-  <div class="sliderRow">
-    <div class="label"><span>吸引（0〜3）</span><b id="suckVal">0</b></div>
-    <input id="suckRange" type="range" min="0" max="3" step="1" value="0">
-  </div>
+  <h2>振動</h2>
+  <div class="packetHex" id="vibeHex">55 03 00 00 00 00</div>
+  <div id="vibeBytes"></div>
+  <h2 style="margin-top:18px;">吸引</h2>
+  <div class="packetHex" id="suckHex">55 09 00 00 00 FF</div>
+  <div id="suckBytes"></div>
+  <div style="height:12px"></div>
   <button id="stopAllBtn">全部止める</button>
 </div>
 
 <div class="card">
-  <p class="note">5 バイト目はリズムなので <code>01</code> で固定しています。スライダーの数が、そのまま最後のバイトです。0 は <code>55 03 00 00 00 00</code>、50 は <code>55 03 00 00 01 32</code>、100 は <code>55 03 00 00 01 64</code> です。</p>
+  <p class="note">各スライダーが 1 バイトです。左の数字は 1 バイト目から順です。範囲は 0〜255。最初は止まった状態で、振動 <code>55 03 00 00 00 00</code>、吸引 <code>55 09 00 00 00 FF</code> です。動かしたバイトを含む 6 バイトだけを送ります。</p>
 </div>
 
 <div class="card">
@@ -97,23 +99,55 @@ $('copyLogBtn').addEventListener('click', function(){
 
 // ffe1 は writeWithoutResponse 専用。
 // 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
-// 動かした方だけ送る。両方止めるときだけ、40ms 空けて順に送る。
-// 5 バイト目はリズムなので 01 固定。0 のときは止める。
-// スライダー 0〜100 を、最後のバイトへそのまま入れる。
-function vibePacket(level){
-  var speed = Math.max(0, Math.min(100, level|0));
-  if (speed === 0) return [0x55, 0x03, 0x00, 0x00, 0x00, 0x00];
-  return [0x55, 0x03, 0x00, 0x00, 0x01, speed];
+// 動かしたパケットだけ送る。両方止めるときだけ、40ms 空けて順に送る。
+var VIBE_OFF = [0x55, 0x03, 0x00, 0x00, 0x00, 0x00];
+var SUCK_OFF = [0x55, 0x09, 0x00, 0x00, 0x00, 0xff];
+var vibeBytes = VIBE_OFF.slice();
+var suckBytes = SUCK_OFF.slice();
+
+function clampByte(n){
+  n = Number(n);
+  if (!isFinite(n)) n = 0;
+  return Math.max(0, Math.min(255, n|0));
 }
-function suckPacket(level){
-  level = Math.max(0, Math.min(3, level|0));
-  return [0x55, 0x09, 0x00, 0x00, level, 0xff];
+
+function paint(name){
+  var bytes = name === 'vibe' ? vibeBytes : suckBytes;
+  $(name + 'Hex').textContent = hex(bytes);
+  var rows = $(name + 'Bytes').querySelectorAll('.byteRow');
+  for (var i = 0; i < bytes.length; i++) {
+    var row = rows[i];
+    row.querySelector('input[type=range]').value = String(bytes[i]);
+    row.querySelector('input[type=number]').value = String(bytes[i]);
+    row.querySelector('.byteHex').textContent = ('0' + bytes[i].toString(16)).slice(-2).toUpperCase();
+  }
+}
+
+function build(name){
+  var bytes = name === 'vibe' ? vibeBytes : suckBytes;
+  var root = $(name + 'Bytes');
+  root.innerHTML = '';
+  bytes.forEach(function(_, i){
+    var row = document.createElement('div');
+    row.className = 'byteRow';
+    row.innerHTML = '<span class="idx">' + (i + 1) + '</span><input type="range" min="0" max="255" step="1"><span class="byteHex">00</span><input type="number" min="0" max="255" step="1">';
+    var range = row.querySelector('input[type=range]');
+    var num = row.querySelector('input[type=number]');
+    function apply(value){
+      bytes[i] = clampByte(value);
+      paint(name);
+      sendPacket(name);
+    }
+    range.addEventListener('input', function(){ apply(range.value); });
+    num.addEventListener('input', function(){ apply(num.value); });
+    root.appendChild(row);
+  });
+  paint(name);
 }
 
 var device = null;
 var txChar = null;
 var writeChain = Promise.resolve();
-var levels = { vibe: 0, suck: 0 };
 
 function setConnected(on){
   $('status').className = on ? 'on' : '';
@@ -138,45 +172,35 @@ function enqueueWrite(bytes, label){
   return writeChain;
 }
 
-var vibeBusy = false;
-var vibeDirty = false;
-function sendVibe(){
-  if (vibeBusy) { vibeDirty = true; return; }
-  vibeBusy = true;
-  vibeDirty = false;
-  var level = levels.vibe;
-  enqueueWrite(vibePacket(level), '振動 ' + level).then(function(){
-    vibeBusy = false;
-    if (vibeDirty || levels.vibe !== level) sendVibe();
+var busy = { vibe: false, suck: false };
+var dirty = { vibe: false, suck: false };
+function sendPacket(name){
+  if (busy[name]) { dirty[name] = true; return; }
+  busy[name] = true;
+  dirty[name] = false;
+  var bytes = (name === 'vibe' ? vibeBytes : suckBytes).slice();
+  var label = (name === 'vibe' ? '振動' : '吸引');
+  enqueueWrite(bytes, label).then(function(){
+    busy[name] = false;
+    var now = name === 'vibe' ? vibeBytes : suckBytes;
+    if (dirty[name] || hex(now) !== hex(bytes)) sendPacket(name);
   });
 }
-function sendSuck(){
-  enqueueWrite(suckPacket(levels.suck), '吸引 ' + levels.suck);
+
+build('vibe');
+build('suck');
+
+function copyInto(dest, src){
+  for (var i = 0; i < dest.length; i++) dest[i] = src[i];
 }
 
-function render(){
-  $('vibeRange').value = levels.vibe;
-  $('suckRange').value = levels.suck;
-  $('vibeVal').textContent = levels.vibe;
-  $('suckVal').textContent = levels.suck;
-}
-
-$('vibeRange').addEventListener('input', function(){
-  levels.vibe = Number($('vibeRange').value);
-  $('vibeVal').textContent = levels.vibe;
-  sendVibe();
-});
-$('suckRange').addEventListener('input', function(){
-  levels.suck = Number($('suckRange').value);
-  $('suckVal').textContent = levels.suck;
-  sendSuck();
-});
 $('stopAllBtn').addEventListener('click', function(){
-  levels.vibe = 0;
-  levels.suck = 0;
-  render();
-  sendVibe();
-  sendSuck();
+  copyInto(vibeBytes, VIBE_OFF);
+  copyInto(suckBytes, SUCK_OFF);
+  paint('vibe');
+  paint('suck');
+  sendPacket('vibe');
+  sendPacket('suck');
   log('全部止めました');
 });
 
@@ -221,8 +245,8 @@ $('connectBtn').addEventListener('click', function(){
       log('書き込み特性 ffe1 を取得しました。write=' + !!props.write + ' / writeWithoutResponse=' + !!props.writeWithoutResponse);
       setConnected(true);
       log('接続できました。スライダーで操作できます。');
-      if (levels.vibe > 0) sendVibe();
-      if (levels.suck > 0) sendSuck();
+      sendPacket('vibe');
+      sendPacket('suck');
       return service.getCharacteristic(RX_CHAR).then(function(rx){
         if (rx.properties && rx.properties.notify) {
           return rx.startNotifications().then(function(){
