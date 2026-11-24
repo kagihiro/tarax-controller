@@ -151,13 +151,15 @@ function enqueueWrite(bytes, label){
   });
   return writeChain;
 }
-var VIBE_SPEED = [0x00, 0x01, 0x20, 0x64];
 function sendLevels(v, s){
   v = Math.max(0, Math.min(3, v|0));
-  var speed = VIBE_SPEED[v];
-  var bytes = speed === 0 ? [0x55, 0x03, 0x00, 0x00, 0x00, 0x00] : [0x55, 0x03, 0x00, 0x00, 0x01, speed];
-  enqueueWrite(bytes, '振動 ' + v);
-  enqueueWrite([0x55, 0x09, 0x00, 0x00, s, 0xff], '吸引 ' + s);
+  s = Math.max(0, Math.min(3, s|0));
+  // 5バイト目が 1弱 2中 3強。6バイト目 0 は停止、動かすときは 20。
+  var vibe = v === 0
+    ? [0x55, 0x03, 0x00, 0x00, 0x01, 0x00, 0x00]
+    : [0x55, 0x03, 0x00, 0x00, v, 0x14, 0x00];
+  enqueueWrite(vibe, '振動 ' + v);
+  enqueueWrite([0x55, 0x09, 0x00, 0x00, s, 0xff, 0x00], '吸引 ' + s);
 }
 function stopToy(){ sendLevels(0, 0); }
 

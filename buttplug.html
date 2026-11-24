@@ -19,12 +19,11 @@
   .note { font-size: 13px; color: #ccc; line-height: 1.6; }
   .note code { color: #ffd54f; }
   .packetHex { font-family: ui-monospace, monospace; color:#ffd54f; font-size: 18px; letter-spacing: .04em; margin: 4px 0 10px; }
-  .byteRow { display:flex; align-items:center; gap: 8px; margin: 6px 0; }
-  .byteRow .idx { width: 16px; color:#888; font-size: 12px; text-align: right; }
-  .byteRow input[type=range] { flex: 1; height: 32px; min-width: 0; }
-  .byteRow input[type=number] { width: 68px; background:#111; color:#fff; border:1px solid #444; border-radius: 8px; padding: 6px 4px; font-size: 16px; }
-  .byteHex { width: 28px; color:#ffd54f; font-family: ui-monospace, monospace; font-size: 13px; }
   h2 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+  .sliderRow { margin: 14px 0; }
+  .sliderRow .label { font-size: 14px; color:#aaa; display:flex; justify-content:space-between; gap: 8px; margin-bottom: 6px; }
+  .sliderRow .label b { color:#ffd54f; font-size:16px; }
+  input[type=range] { width: 100%; height: 36px; }
   #log { font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; color: #9f9; }
   .hidden { display: none; }
   .smallBtn { width:auto; padding: 6px 12px; font-size: 12px; }
@@ -37,23 +36,34 @@
 <div class="card">
   <div id="status"><span class="dot"></span><span id="statusText">未接続</span></div>
   <div style="height:12px"></div>
-  <p class="note">SX218A（Tara X）へ、下の 7 バイトをそのまま送ります。動かしたパケットだけが送られます。</p>
+  <p class="note">SX218A（Tara X）へ、実機で分かったバイトを送ります。動かした方だけが送られます。</p>
   <button id="connectBtn">デバイスを接続</button>
 </div>
 
 <div class="card" id="controls">
   <h2>振動</h2>
-  <div class="packetHex" id="vibeHex">55 03 00 00 00 00 00</div>
-  <div id="vibeBytes"></div>
+  <div class="packetHex" id="vibeHex">55 03 00 00 01 00 00</div>
+  <div class="sliderRow">
+    <div class="label"><span>5バイト目 <b id="vibeModeName">弱</b></span><b id="vibeModeVal">1</b></div>
+    <input id="vibeMode" type="range" min="1" max="12" step="1" value="1">
+  </div>
+  <div class="sliderRow">
+    <div class="label"><span>6バイト目 速さ（0 は停止、1〜20）</span><b id="vibeSpeedVal">0</b></div>
+    <input id="vibeSpeed" type="range" min="0" max="20" step="1" value="0">
+  </div>
   <h2 style="margin-top:18px;">吸引</h2>
   <div class="packetHex" id="suckHex">55 09 00 00 00 FF 00</div>
-  <div id="suckBytes"></div>
+  <div class="sliderRow">
+    <div class="label"><span>5バイト目 <b id="suckModeName">停止</b></span><b id="suckModeVal">0</b></div>
+    <input id="suckMode" type="range" min="0" max="12" step="1" value="0">
+  </div>
+  <p class="note">吸引の 6 バイト目は <code>FF</code> のままです。強さとしては効いていないようです。</p>
   <div style="height:12px"></div>
   <button id="stopAllBtn">全部止める</button>
 </div>
 
 <div class="card">
-  <p class="note">各スライダーが 1 バイトです。左の数字は 1 バイト目から順です。範囲は 0〜255。7 バイト目は同じ系列の機体で末尾に付く <code>00</code> です。最初は振動 <code>55 03 00 00 00 00 00</code>、吸引 <code>55 09 00 00 00 FF 00</code> です。</p>
+  <p class="note">振動は <code>55 03 00 00 [5] [6] 00</code>。5バイト目は 1弱・2中・3強、4〜12 はリズム。6バイト目は 0 で停止、1〜20 で遷移します。吸引は <code>55 09 00 00 [5] FF 00</code> で、5バイト目の番号は振動と同じです。</p>
 </div>
 
 <div class="card">
@@ -100,49 +110,35 @@ $('copyLogBtn').addEventListener('click', function(){
 // ffe1 は writeWithoutResponse 専用。
 // 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
 // 動かしたパケットだけ送る。両方止めるときだけ、40ms 空けて順に送る。
-var VIBE_OFF = [0x55, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00];
-var SUCK_OFF = [0x55, 0x09, 0x00, 0x00, 0x00, 0xff, 0x00];
-var vibeBytes = VIBE_OFF.slice();
-var suckBytes = SUCK_OFF.slice();
+// 実機: 振動の6バイト目は 0 で停止、1〜20 で遷移。
+// 5バイト目は 1弱 2中 3強、4〜12 はリズム。吸引に強さは無く、5バイト目だけ同じ。
+var vibe = { mode: 1, speed: 0 };
+var suck = { mode: 0 };
 
-function clampByte(n){
-  n = Number(n);
-  if (!isFinite(n)) n = 0;
-  return Math.max(0, Math.min(255, n|0));
+function modeName(n){
+  if (n === 0) return '停止';
+  if (n === 1) return '弱';
+  if (n === 2) return '中';
+  if (n === 3) return '強';
+  return 'リズム ' + n;
 }
-
-function paint(name){
-  var bytes = name === 'vibe' ? vibeBytes : suckBytes;
-  $(name + 'Hex').textContent = hex(bytes);
-  var rows = $(name + 'Bytes').querySelectorAll('.byteRow');
-  for (var i = 0; i < bytes.length; i++) {
-    var row = rows[i];
-    row.querySelector('input[type=range]').value = String(bytes[i]);
-    row.querySelector('input[type=number]').value = String(bytes[i]);
-    row.querySelector('.byteHex').textContent = ('0' + bytes[i].toString(16)).slice(-2).toUpperCase();
-  }
+function vibePacket(){
+  return [0x55, 0x03, 0x00, 0x00, vibe.mode, vibe.speed, 0x00];
 }
-
-function build(name){
-  var bytes = name === 'vibe' ? vibeBytes : suckBytes;
-  var root = $(name + 'Bytes');
-  root.innerHTML = '';
-  bytes.forEach(function(_, i){
-    var row = document.createElement('div');
-    row.className = 'byteRow';
-    row.innerHTML = '<span class="idx">' + (i + 1) + '</span><input type="range" min="0" max="255" step="1"><span class="byteHex">00</span><input type="number" min="0" max="255" step="1">';
-    var range = row.querySelector('input[type=range]');
-    var num = row.querySelector('input[type=number]');
-    function apply(value){
-      bytes[i] = clampByte(value);
-      paint(name);
-      sendPacket(name);
-    }
-    range.addEventListener('input', function(){ apply(range.value); });
-    num.addEventListener('input', function(){ apply(num.value); });
-    root.appendChild(row);
-  });
-  paint(name);
+function suckPacket(){
+  return [0x55, 0x09, 0x00, 0x00, suck.mode, 0xff, 0x00];
+}
+function paint(){
+  $('vibeHex').textContent = hex(vibePacket());
+  $('suckHex').textContent = hex(suckPacket());
+  $('vibeMode').value = String(vibe.mode);
+  $('vibeSpeed').value = String(vibe.speed);
+  $('suckMode').value = String(suck.mode);
+  $('vibeModeVal').textContent = String(vibe.mode);
+  $('vibeSpeedVal').textContent = String(vibe.speed);
+  $('suckModeVal').textContent = String(suck.mode);
+  $('vibeModeName').textContent = modeName(vibe.mode);
+  $('suckModeName').textContent = modeName(suck.mode);
 }
 
 var device = null;
@@ -178,29 +174,44 @@ function sendPacket(name){
   if (busy[name]) { dirty[name] = true; return; }
   busy[name] = true;
   dirty[name] = false;
-  var bytes = (name === 'vibe' ? vibeBytes : suckBytes).slice();
-  var label = (name === 'vibe' ? '振動' : '吸引');
+  var bytes = (name === 'vibe' ? vibePacket() : suckPacket()).slice();
+  var label = name === 'vibe'
+    ? ('振動 モード' + vibe.mode + ' 速さ' + vibe.speed)
+    : ('吸引 モード' + suck.mode);
   enqueueWrite(bytes, label).then(function(){
     busy[name] = false;
-    var now = name === 'vibe' ? vibeBytes : suckBytes;
+    var now = name === 'vibe' ? vibePacket() : suckPacket();
     if (dirty[name] || hex(now) !== hex(bytes)) sendPacket(name);
   });
 }
 
-build('vibe');
-build('suck');
+function sendVibe(){ sendPacket('vibe'); }
+function sendSuck(){ sendPacket('suck'); }
 
-function copyInto(dest, src){
-  for (var i = 0; i < dest.length; i++) dest[i] = src[i];
-}
+$('vibeMode').addEventListener('input', function(){
+  vibe.mode = Math.max(1, Math.min(12, Number($('vibeMode').value) || 1));
+  paint();
+  sendVibe();
+});
+$('vibeSpeed').addEventListener('input', function(){
+  vibe.speed = Math.max(0, Math.min(20, Number($('vibeSpeed').value) || 0));
+  paint();
+  sendVibe();
+});
+$('suckMode').addEventListener('input', function(){
+  suck.mode = Math.max(0, Math.min(12, Number($('suckMode').value) || 0));
+  paint();
+  sendSuck();
+});
+paint();
 
 $('stopAllBtn').addEventListener('click', function(){
-  copyInto(vibeBytes, VIBE_OFF);
-  copyInto(suckBytes, SUCK_OFF);
-  paint('vibe');
-  paint('suck');
-  sendPacket('vibe');
-  sendPacket('suck');
+  vibe.mode = 1;
+  vibe.speed = 0;
+  suck.mode = 0;
+  paint();
+  sendVibe();
+  sendSuck();
   log('全部止めました');
 });
 
@@ -245,8 +256,8 @@ $('connectBtn').addEventListener('click', function(){
       log('書き込み特性 ffe1 を取得しました。write=' + !!props.write + ' / writeWithoutResponse=' + !!props.writeWithoutResponse);
       setConnected(true);
       log('接続できました。スライダーで操作できます。');
-      sendPacket('vibe');
-      sendPacket('suck');
+      if (vibe.speed > 0) sendVibe();
+      if (suck.mode > 0) sendSuck();
       return service.getCharacteristic(RX_CHAR).then(function(rx){
         if (rx.properties && rx.properties.notify) {
           return rx.startNotifications().then(function(){

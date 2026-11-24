@@ -223,40 +223,41 @@
 
   <!-- Controls -->
   <section class="card" aria-labelledby="ctrl-h">
-    <h2 id="ctrl-h">操作 <span>— どちらも 0〜3 の4段階</span></h2>
+    <h2 id="ctrl-h">操作 <span>— 実機で確認した対応</span></h2>
     <div id="controlsBody">
       <div class="control vibe">
         <div class="control-head">
-          <div><div class="control-name">振動</div><div class="control-sub">挿入部 · 出力 0</div></div>
-          <div class="level-badge" id="vibeVal">0 <small>/ 3</small></div>
+          <div><div class="control-name">振動</div><div class="control-sub">5バイト目は弱・中・強とリズム、6バイト目は 0〜20</div></div>
+          <div class="level-badge" id="vibeVal">弱 · 速さ 0</div>
         </div>
-        <div class="seg" id="vibeSeg" role="group" aria-label="振動の強さ">
-          <button data-v="0" aria-pressed="true">切</button>
-          <button data-v="1" aria-pressed="false">1 弱</button>
+        <div class="seg" id="vibeSeg" role="group" aria-label="振動の5バイト目">
+          <button data-v="1" aria-pressed="true">1 弱</button>
           <button data-v="2" aria-pressed="false">2 中</button>
           <button data-v="3" aria-pressed="false">3 強</button>
         </div>
-        <input type="range" id="vibeRange" min="0" max="3" step="1" value="0" aria-label="振動スライダー">
-        <div class="range-labels"><span>0</span><span>1</span><span>2</span><span>3</span></div>
+        <input type="range" id="vibeMode" min="1" max="12" step="1" value="1" aria-label="振動の5バイト目">
+        <div class="range-labels"><span>1 弱</span><span>3 強</span><span>12 リズム</span></div>
+        <input type="range" id="vibeSpeed" min="0" max="20" step="1" value="0" aria-label="振動の速さ">
+        <div class="range-labels"><span>0 停止</span><span id="vibeSpeedLabel">0</span><span>20</span></div>
       </div>
 
       <div class="control suction">
         <div class="control-head">
-          <div><div class="control-name">吸引 / 脈動</div><div class="control-sub">外側 · 出力 1</div></div>
-          <div class="level-badge" id="suckVal">0 <small>/ 3</small></div>
+          <div><div class="control-name">吸引 / 脈動</div><div class="control-sub">5バイト目だけ。リズムは振動と同じ。強さのバイトは無し</div></div>
+          <div class="level-badge" id="suckVal">停止</div>
         </div>
-        <div class="seg" id="suckSeg" role="group" aria-label="吸引の強さ">
+        <div class="seg" id="suckSeg" role="group" aria-label="吸引の5バイト目">
           <button data-v="0" aria-pressed="true">切</button>
           <button data-v="1" aria-pressed="false">1 弱</button>
           <button data-v="2" aria-pressed="false">2 中</button>
           <button data-v="3" aria-pressed="false">3 強</button>
         </div>
-        <input type="range" id="suckRange" min="0" max="3" step="1" value="0" aria-label="吸引スライダー">
-        <div class="range-labels"><span>0</span><span>1</span><span>2</span><span>3</span></div>
+        <input type="range" id="suckMode" min="0" max="12" step="1" value="0" aria-label="吸引の5バイト目">
+        <div class="range-labels"><span>0</span><span>3</span><span>12</span></div>
       </div>
 
       <button class="btn stop-btn" id="stopBtn">■ すべて停止</button>
-      <p class="hint">未接続でもボタンは押せますが、送信は接続後に行われます。アプリ側の9パターンや加熱はこの方式では操作できません — 強さ4段階のみです。</p>
+      <p class="hint">振動は <code>55 03 00 00 [5] [6] 00</code>。吸引は <code>55 09 00 00 [5] FF 00</code>。未接続でもスライダーは動きますが、送信は接続後です。</p>
     </div>
   </section>
 
@@ -282,8 +283,8 @@
       <summary>送信しているバイトについて</summary>
       <p>Buttplug の Svakom / Tara X 実装をベースにした形式です。書き込み先は <code>ffe1</code> です。</p>
       <ul>
-        <li>振動: <code>55 03 00 00 01 [強さ]</code>。5 バイト目の <code>01</code> はリズム固定。画面の 1 / 2 / 3 は強さ <code>01 / 20 / 64</code>。</li>
-        <li>吸引: <code>55 09 00 00 [強さ 0–3] FF</code>（振動の 40ms 後に送信）</li>
+        <li>振動: <code>55 03 00 00 [5] [6] 00</code>。5バイト目は 1弱・2中・3強、4〜12はリズム。6バイト目は 0 で停止、1〜20 で遷移。</li>
+        <li>吸引: <code>55 09 00 00 [5] FF 00</code>。5バイト目の番号は振動と同じ。強さのバイトは無し。</li>
         <li>実機で反応が違う場合は、上の生バイト欄で別パターンを試してログで切り分けできます。</li>
       </ul>
     </details>
@@ -312,7 +313,7 @@
 
   var device = null;
   var txChar = null;
-  var state = { vibe: 0, suck: 0 };
+  var state = { vibeMode: 1, vibeSpeed: 0, suckMode: 0 };
   var writeChain = Promise.resolve();
   var connecting = false;
   var searchTimers = [];
@@ -371,15 +372,21 @@
     return writeChain;
   }
 
-  var VIBE_SPEED = [0x00, 0x01, 0x20, 0x64];
-  function sendVibe(level){
-    level = Math.max(0, Math.min(3, level|0));
-    var speed = VIBE_SPEED[level];
-    var bytes = speed === 0 ? [0x55, 0x03, 0x00, 0x00, 0x00, 0x00] : [0x55, 0x03, 0x00, 0x00, 0x01, speed];
-    enqueueWrite(bytes, '振動 ' + level);
+  function modeName(n){
+    if (n === 0) return '停止';
+    if (n === 1) return '弱';
+    if (n === 2) return '中';
+    if (n === 3) return '強';
+    return 'リズム ' + n;
   }
-  function sendSuck(level){
-    enqueueWrite([0x55, 0x09, 0x00, 0x00, level, 0xff], '吸引 ' + level);
+  function sendVibe(){
+    var mode = Math.max(1, Math.min(12, state.vibeMode|0));
+    var speed = Math.max(0, Math.min(20, state.vibeSpeed|0));
+    enqueueWrite([0x55, 0x03, 0x00, 0x00, mode, speed, 0x00], '振動 ' + modeName(mode) + ' 速さ' + speed);
+  }
+  function sendSuck(){
+    var mode = Math.max(0, Math.min(12, state.suckMode|0));
+    enqueueWrite([0x55, 0x09, 0x00, 0x00, mode, 0xff, 0x00], '吸引 ' + modeName(mode));
   }
 
   // --- Connect ---
@@ -485,8 +492,8 @@
       disconnectBtn.disabled = false;
       log('接続できました。スライダー／ボタンで操作できます。');
       // 現在のスライダー値を反映
-      if (state.vibe > 0) sendVibe(state.vibe);
-      if (state.suck > 0) sendSuck(state.suck);
+      if (state.vibeSpeed > 0) sendVibe();
+      if (state.suckMode > 0) sendSuck();
     }).catch(function(err){
       endConnectAttempt();
       connectBtn.disabled = false;
@@ -510,46 +517,63 @@
   });
 
   // --- Controls ---
-  function bindControl(prefix, key, sendFn){
-    var seg = document.getElementById(prefix+'Seg');
-    var range = document.getElementById(prefix+'Range');
-    var val = document.getElementById(prefix+'Val');
-    var buttons = seg.querySelectorAll('button');
-    function render(level){
-      val.innerHTML = level + ' <small>/ 3</small>';
-      range.value = level;
-      for (var i=0;i<buttons.length;i++){
-        buttons[i].setAttribute('aria-pressed', String(Number(buttons[i].getAttribute('data-v')) === level));
-      }
+  function renderControls(){
+    var vibeMode = document.getElementById('vibeMode');
+    var vibeSpeed = document.getElementById('vibeSpeed');
+    var suckMode = document.getElementById('suckMode');
+    vibeMode.value = state.vibeMode;
+    vibeSpeed.value = state.vibeSpeed;
+    suckMode.value = state.suckMode;
+    document.getElementById('vibeVal').textContent = modeName(state.vibeMode) + ' · 速さ ' + state.vibeSpeed;
+    document.getElementById('vibeSpeedLabel').textContent = String(state.vibeSpeed);
+    document.getElementById('suckVal').textContent = modeName(state.suckMode);
+    var vibeBtns = document.getElementById('vibeSeg').querySelectorAll('button');
+    for (var i=0;i<vibeBtns.length;i++){
+      vibeBtns[i].setAttribute('aria-pressed', String(Number(vibeBtns[i].getAttribute('data-v')) === state.vibeMode));
     }
-    function setLevel(level, fromRange){
-      level = Math.max(0, Math.min(3, Number(level)||0));
-      if (state[key] === level && !fromRange) { render(level); return; }
-      state[key] = level;
-      render(level);
-      sendFn(level);
+    var suckBtns = document.getElementById('suckSeg').querySelectorAll('button');
+    for (var j=0;j<suckBtns.length;j++){
+      suckBtns[j].setAttribute('aria-pressed', String(Number(suckBtns[j].getAttribute('data-v')) === state.suckMode));
     }
-    for (var i=0;i<buttons.length;i++){
-      (function(btn){
-        btn.addEventListener('click', function(){ setLevel(btn.getAttribute('data-v')); });
-      })(buttons[i]);
-    }
-    range.addEventListener('input', function(){ setLevel(range.value, true); });
-    render(0);
-    return { setLevel: setLevel, render: render };
   }
-  var vibeCtl = bindControl('vibe', 'vibe', sendVibe);
-  var suckCtl = bindControl('suck', 'suck', sendSuck);
+  document.getElementById('vibeSeg').addEventListener('click', function(e){
+    if (e.target.tagName !== 'BUTTON') return;
+    state.vibeMode = Number(e.target.getAttribute('data-v'));
+    renderControls();
+    sendVibe();
+  });
+  document.getElementById('vibeMode').addEventListener('input', function(){
+    state.vibeMode = Number(document.getElementById('vibeMode').value);
+    renderControls();
+    sendVibe();
+  });
+  document.getElementById('vibeSpeed').addEventListener('input', function(){
+    state.vibeSpeed = Number(document.getElementById('vibeSpeed').value);
+    renderControls();
+    sendVibe();
+  });
+  document.getElementById('suckSeg').addEventListener('click', function(e){
+    if (e.target.tagName !== 'BUTTON') return;
+    state.suckMode = Number(e.target.getAttribute('data-v'));
+    renderControls();
+    sendSuck();
+  });
+  document.getElementById('suckMode').addEventListener('input', function(){
+    state.suckMode = Number(document.getElementById('suckMode').value);
+    renderControls();
+    sendSuck();
+  });
+  renderControls();
 
   function stopAll(){
-    state.vibe = 0; state.suck = 0;
-    vibeCtl.render(0); suckCtl.render(0);
-    document.getElementById('vibeRange').value = 0;
-    document.getElementById('suckRange').value = 0;
-    if (!txChar) { log('すべて停止: 未接続のため送信はスキップされます（表示は 0 に戻しました）。'); }
+    state.vibeMode = 1;
+    state.vibeSpeed = 0;
+    state.suckMode = 0;
+    renderControls();
+    if (!txChar) { log('すべて停止: 未接続のため送信はスキップされます（表示は停止に戻しました）。'); }
     else { log('すべて停止を送信しました。'); }
-    sendVibe(0);
-    sendSuck(0);
+    sendVibe();
+    sendSuck();
   }
   document.getElementById('stopBtn').addEventListener('click', stopAll);
 
