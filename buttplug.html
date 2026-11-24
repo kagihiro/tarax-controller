@@ -94,8 +94,9 @@ $('copyLogBtn').addEventListener('click', function(){
   } else fallback();
 });
 
-// 実機で確認済み（index.html / game.html と同じ）。
-// ffe1 は writeWithoutResponse 専用。吸引は振動のあとに 40ms 空ける。
+// 実機で確認済み（index.html と同じ）。ffe1 は writeWithoutResponse 専用。
+// 振動と吸引を続けて送ると、後のコマンドが先のコマンドを消す。
+// 動かした方だけ送る。両方止めるときだけ、40ms 空けて順に送る。
 function vibePacket(level){
   level = Math.max(0, Math.min(3, level|0));
   return [0x55, 0x03, 0x00, 0x00, level > 0 ? 0x01 : 0x00, level];
@@ -133,8 +134,10 @@ function enqueueWrite(bytes, label){
   return writeChain;
 }
 
-function sendLevels(){
+function sendVibe(){
   enqueueWrite(vibePacket(levels.vibe), '振動 ' + levels.vibe);
+}
+function sendSuck(){
   enqueueWrite(suckPacket(levels.suck), '吸引 ' + levels.suck);
 }
 
@@ -148,18 +151,19 @@ function render(){
 $('vibeRange').addEventListener('input', function(){
   levels.vibe = Number($('vibeRange').value);
   $('vibeVal').textContent = levels.vibe;
-  sendLevels();
+  sendVibe();
 });
 $('suckRange').addEventListener('input', function(){
   levels.suck = Number($('suckRange').value);
   $('suckVal').textContent = levels.suck;
-  sendLevels();
+  sendSuck();
 });
 $('stopAllBtn').addEventListener('click', function(){
   levels.vibe = 0;
   levels.suck = 0;
   render();
-  sendLevels();
+  sendVibe();
+  sendSuck();
   log('全部止めました');
 });
 
@@ -204,7 +208,8 @@ $('connectBtn').addEventListener('click', function(){
       log('書き込み特性 ffe1 を取得しました。write=' + !!props.write + ' / writeWithoutResponse=' + !!props.writeWithoutResponse);
       setConnected(true);
       log('接続できました。スライダーで操作できます。');
-      if (levels.vibe > 0 || levels.suck > 0) sendLevels();
+      if (levels.vibe > 0) sendVibe();
+      if (levels.suck > 0) sendSuck();
       return service.getCharacteristic(RX_CHAR).then(function(rx){
         if (rx.properties && rx.properties.notify) {
           return rx.startNotifications().then(function(){
